@@ -24,6 +24,9 @@ BOILER_DEADBAND = 2
 # Room demand gating (rooms only contribute an error while their thermostat reports it is heating)
 AREA_STATE_MAX_AGE = 3600
 
+# Once no room is calling for heat, a running burn may finish, but never for longer than this (in seconds)
+DEMAND_BURN_FINISH_TIMEOUT = 600
+
 HEATER_STARTUP_TIMEFRAME = 180
 
 COLD_SETPOINT = 28.2

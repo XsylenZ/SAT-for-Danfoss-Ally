@@ -200,7 +200,7 @@
           "automatic_gains_value": "The value used for automatic gains in the PID controller.",
           "derivative": "The derivative term (kD) in the PID controller, responsible for mitigating overshooting.",
           "derivative_time_weight": "A parameter to adjust the influence of the derivative term over time, particularly useful for reducing undershoot during the warm-up phase when the heating curve coefficient is correctly set.",
-          "duty_cycle": "The maximum duty cycle for Pulse Width Modulation (PWM), controlling the boiler's on-off cycles.",
+          "duty_cycle": "The length of one Pulse Width Modulation (PWM) on/off cycle, used only when Automatic duty cycle is off. This does not turn PWM on or off.",
           "heating_curve_coefficient": "The coefficient used to adjust the heating curve.",
           "overshoot_hold": "The minimum error a room keeps contributing while its thermostat still reports heating, so heat is requested until the thermostat itself is satisfied.",
           "integral": "The integral term (kI) in the PID controller, responsible for reducing steady-state error.",
@@ -242,8 +242,8 @@
           "window_minimum_open_time": "Minimum time for window to be open"
         },
         "data_description": {
-          "cycles_per_hour": "The maximum amount of duty cycles per hour.",
-          "automatic_duty_cycle": "Enable or disable automatic duty cycle for Pulse Width Modulation (PWM).",
+          "cycles_per_hour": "The maximum number of burner cycles per hour while Pulse Width Modulation (PWM) is running. This does not turn PWM on or off.",
+          "automatic_duty_cycle": "How Pulse Width Modulation (PWM) times its on/off cycles. On: SAT picks the timing itself, limited by Duty Cycles per hour. Off: one fixed cycle of Maximum Duty Cycle (General) is split into on and off time. This does not turn PWM on or off: PWM runs whenever the requested flow temperature is below the Overshoot Protection Value.",
           "overshoot_protection": "Enable overshoot protection with Pulse Width Modulation (PWM) to prevent boiler temperature overshooting.",
           "sensor_max_value_age": "The maximum age of the temperature sensor value before considering it as a stall.",
           "window_minimum_open_time": "The minimum time a window must be open before the system reacts."

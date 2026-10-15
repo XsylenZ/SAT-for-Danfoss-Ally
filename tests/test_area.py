@@ -8,7 +8,7 @@ from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import State
 from homeassistant.util import dt
 
-from custom_components.sat.area import Area
+from custom_components.sat.area import Area, Areas
 from custom_components.sat.const import *
 from tests.const import DEFAULT_USER_DATA
 
@@ -91,3 +91,46 @@ def test_hold_is_configurable() -> None:
     area._hass = SimpleNamespace(states=SimpleNamespace(get=lambda entity_id: create_state(20.6, 20.0, HVACAction.HEATING)))
 
     assert area.error.value == 1.2
+
+
+def create_areas(states: dict[str, State | None]) -> Areas:
+    areas = Areas(MappingProxyType({**DEFAULT_USER_DATA, CONF_ROOMS: list(states)}), MappingProxyType(OPTIONS_DEFAULTS))
+    for area in areas._areas:
+        area._hass = SimpleNamespace(states=SimpleNamespace(get=lambda entity_id: states[entity_id]))
+
+    return areas
+
+
+def test_demand_when_a_room_is_heating() -> None:
+    assert create_areas({
+        "climate.radiator_1": create_state(20.5, 20.0, HVACAction.IDLE),
+        "climate.radiator_2": create_state(20.5, 20.0, HVACAction.HEATING),
+    }).demand
+
+
+def test_no_demand_when_all_rooms_are_idle() -> None:
+    assert not create_areas({
+        "climate.radiator_1": create_state(19.0, 20.0, HVACAction.IDLE),
+        "climate.radiator_2": create_state(18.0, 20.0, HVACAction.IDLE),
+    }).demand
+
+
+def test_no_demand_when_idle_and_unavailable() -> None:
+    assert not create_areas({
+        "climate.radiator_1": create_state(19.0, 20.0, HVACAction.IDLE),
+        "climate.radiator_2": None,
+    }).demand
+
+
+def test_demand_when_no_room_is_available() -> None:
+    assert create_areas({
+        "climate.radiator_1": None,
+        "climate.radiator_2": create_state(19.0, 20.0, HVACAction.HEATING, state=STATE_UNAVAILABLE),
+    }).demand
+
+
+@pytest.mark.parametrize("current, expected", [(19.9, True), (20.5, False)])
+def test_stale_room_demand_follows_plain_error(current, expected) -> None:
+    assert create_areas({
+        "climate.radiator_1": create_state(current, 20.0, HVACAction.HEATING, age=AREA_STATE_MAX_AGE + 60),
+    }).demand == expected

@@ -9,6 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sat.climate import SatClimate
 from custom_components.sat.const import *
+from custom_components.sat.coordinator import DeviceState
 from custom_components.sat.fake import SatFakeCoordinator
 
 
@@ -150,3 +151,143 @@ async def test_scenario_3(hass: HomeAssistant, entry: MockConfigEntry, climate: 
     assert climate.pulse_width_modulation_enabled
     assert climate.pwm.last_duty_cycle_percentage == 53.62
     assert climate.pwm.duty_cycle == (643, 556)
+
+
+@pytest.mark.parametrize(*[
+    "domains, data, options, config",
+    [(
+            [(TEMPLATE_DOMAIN, 1)],
+            {
+                CONF_MODE: MODE_FAKE,
+                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                CONF_MINIMUM_SETPOINT: 57,
+                CONF_MAXIMUM_SETPOINT: 75,
+                CONF_ROOMS: ["climate.radiator_1"],
+            },
+            {
+                CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+            },
+            {
+                TEMPLATE_DOMAIN: [
+                    {
+                        SENSOR_DOMAIN: [
+                            {
+                                "name": "test_inside_sensor",
+                                "state": "{{ 20.9 | float }}",
+                            },
+                            {
+                                "name": "test_outside_sensor",
+                                "state": "{{ 9.9 | float }}",
+                            }
+                        ]
+                    },
+                ],
+            },
+    )],
+])
+async def test_no_heat_without_room_demand(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    async def set_room(hvac_action: str) -> None:
+        hass.states.async_set("climate.radiator_1", HVACMode.HEAT, {"current_temperature": 19.0, "temperature": 20.0, "hvac_action": hvac_action, "hvac_modes": [HVACMode.HEAT]})
+        await climate.async_control_heating_loop()
+
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    # The main room and the heating curve ask for heat, but the only room is idle
+    await set_room("idle")
+    assert not climate.heat_demand
+    assert climate.pulse_width_modulation_enabled
+    assert climate.pwm.status == PWMStatus.IDLE
+    assert climate.setpoint == MINIMUM_SETPOINT
+    assert not coordinator.flame_active
+
+    # As soon as the room calls for heat, the boiler is allowed to fire again
+    await set_room("heating")
+    assert climate.heat_demand
+    assert climate.setpoint > COLD_SETPOINT
+    assert coordinator.flame_active
+
+    # The room is satisfied while the burner is running, so the burn may finish
+    await set_room("idle")
+    assert not climate.heat_demand
+    assert climate.setpoint > COLD_SETPOINT
+    assert coordinator.flame_active
+
+    # The burn has finished, so we stop and don't start again
+    await coordinator.async_set_heater_state(DeviceState.OFF)
+    await climate.async_control_heating_loop()
+    assert climate.setpoint == MINIMUM_SETPOINT
+
+    await climate.async_control_heating_loop()
+    assert climate.setpoint == MINIMUM_SETPOINT
+    assert not coordinator.flame_active
+
+    # A burn that keeps going is stopped after the timeout
+    await set_room("heating")
+    await set_room("idle")
+    assert climate.setpoint > COLD_SETPOINT
+
+    climate._demand_lost_at -= DEMAND_BURN_FINISH_TIMEOUT + 1
+    await climate.async_control_heating_loop()
+    assert climate.setpoint == MINIMUM_SETPOINT
+    assert not coordinator.flame_active
+
+
+@pytest.mark.parametrize(*[
+    "domains, data, options, config",
+    [(
+            [(TEMPLATE_DOMAIN, 1)],
+            {
+                CONF_MODE: MODE_FAKE,
+                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                CONF_MINIMUM_SETPOINT: 57,
+                CONF_MAXIMUM_SETPOINT: 75,
+                CONF_ROOMS: ["climate.radiator_1"],
+            },
+            {
+                CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+            },
+            {
+                TEMPLATE_DOMAIN: [
+                    {
+                        SENSOR_DOMAIN: [
+                            {
+                                "name": "test_inside_sensor",
+                                "state": "{{ 24.8 | float }}",
+                            },
+                            {
+                                "name": "test_outside_sensor",
+                                "state": "{{ 9.9 | float }}",
+                            }
+                        ]
+                    },
+                ],
+            },
+    )],
+])
+async def test_error_source_change_does_not_kick_derivative(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    def set_room(current: float, hvac_action: str) -> None:
+        hass.states.async_set("climate.radiator_1", HVACMode.HEAT, {"current_temperature": current, "temperature": 20.0, "hvac_action": hvac_action, "hvac_modes": [HVACMode.HEAT]})
+
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    # The main room is well above its target and the room is idle
+    set_room(20.6, "idle")
+    climate._async_control_pid()
+    assert climate.max_error.entity_id == climate.entity_id
+    assert climate.max_error.value == -3.8
+
+    # The room takes over, its error is close to zero, far from the main room
+    set_room(20.6, "heating")
+    climate.pid._last_updated -= 165
+    climate._async_control_pid()
+
+    assert climate.max_error.entity_id == "climate.radiator_1"
+    assert climate.pid.last_error == climate.max_error.value
+    assert climate.pid.raw_derivative == 0
+    assert climate.requested_setpoint < 50

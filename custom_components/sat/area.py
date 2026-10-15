@@ -144,6 +144,15 @@ class Areas:
         return Errors([area.error for area in self._areas if area.error is not None])
 
     @property
+    def demand(self) -> bool:
+        """Return True when any area is calling for heat, or when no area can tell us."""
+        # Without any available area we can't judge the demand, so behave like before
+        if all(area.state is None for area in self._areas):
+            return True
+
+        return any(error.value > 0 for error in self.errors)
+
+    @property
     def heating_curves(self):
         """Return an interface to update heating curves for all areas."""
         return Areas._HeatingCurves(self._areas)

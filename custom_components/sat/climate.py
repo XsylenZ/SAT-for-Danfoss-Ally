@@ -113,6 +113,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._setpoint = None
         self._calculated_setpoint = None
         self._last_boiler_temperature = None
+        self._heat_allowed = True
+        self._demand_lost_at = None
+        self._error_source = None
 
         self._hvac_mode = None
         self._target_temperature = None
@@ -408,7 +411,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "relative_modulation_enabled": self.relative_modulation.enabled,
             "relative_modulation_state": self.relative_modulation_state.name,
 
+            "heat_demand": self.heat_demand,
+            "heat_allowed": self._heat_allowed,
+
             "pulse_width_modulation_enabled": self.pwm.enabled,
+            "pulse_width_modulation_active": self.pulse_width_modulation_enabled,
             "pulse_width_modulation_state": self.pwm.status.name,
             "pulse_width_modulation_duty_cycle": self.pwm.duty_cycle,
         }
@@ -497,6 +504,14 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @property
     def max_error(self) -> Error:
         return max(self.errors, key=lambda error: error.value)
+
+    @property
+    def heat_demand(self) -> bool:
+        """Return False when rooms are configured, but none of them is calling for heat."""
+        if self._heating_mode == HEATING_MODE_ECO or len(self.areas.items()) == 0:
+            return True
+
+        return self.areas.demand
 
     @property
     def setpoint(self) -> float | None:
@@ -772,6 +787,13 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.areas.heating_curves.update(self.current_outside_temperature)
             self.heating_curve.update(self.target_temperature, self.current_outside_temperature)
 
+        # Restart the PID from the new error when another room takes over, so the jump between them doesn't kick the derivative
+        if not reset and self._error_source is not None and max_error.entity_id != self._error_source:
+            _LOGGER.info(f"Error source changed from {self._error_source} to {max_error.entity_id}, resetting the PID controller")
+            self.pid.update_reset(error=max_error, heating_curve_value=self.heating_curve.value)
+
+        self._error_source = max_error.entity_id
+
         # Update the PID controller with the maximum error
         if not reset:
             _LOGGER.info(f"Updating error to {max_error.value} from {max_error.entity_id} (Reset: False)")
@@ -809,6 +831,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._calculated_setpoint = None
             self._setpoint = MINIMUM_SETPOINT
             _LOGGER.info("HVAC mode is not HEAT. Setting setpoint to minimum: %.1f°C", MINIMUM_SETPOINT)
+
+        elif not self._heat_allowed:
+            # None of the rooms is calling for heat, so neither the heating curve nor PWM may fire the boiler
+            self._setpoint = MINIMUM_SETPOINT
+            _LOGGER.info("No room is calling for heat. Setting setpoint to minimum: %.1f°C", MINIMUM_SETPOINT)
 
         elif not self.pulse_width_modulation_enabled or pwm_state.status == PWMStatus.IDLE:
             # Normal cycle without PWM
@@ -877,6 +904,28 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             if target_temperature is not None:
                 self._rooms[entity_id] = float(target_temperature)
 
+    def _update_heat_allowed(self) -> None:
+        """Allow heating while a room is calling for heat, and let a running burn finish once none of them is."""
+        if self.heat_demand:
+            self._heat_allowed = True
+            self._demand_lost_at = None
+            return
+
+        if self._demand_lost_at is None:
+            self._demand_lost_at = monotonic()
+
+            # Only a burn that is already running may finish, hot water is not ours to finish
+            self._heat_allowed = self._coordinator.flame_active and not self._coordinator.hot_water_active
+            _LOGGER.info("No room is calling for heat anymore (%s).", "finishing the current burn" if self._heat_allowed else "stopping")
+            return
+
+        if not self._heat_allowed:
+            return
+
+        if not self._coordinator.flame_active or monotonic() - self._demand_lost_at > DEMAND_BURN_FINISH_TIMEOUT:
+            self._heat_allowed = False
+            _LOGGER.info("Finished the burn without any room calling for heat, stopping.")
+
     def reset_control_state(self):
         """Reset control state when major changes occur."""
         self.pwm.disable()
@@ -937,6 +986,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Control the heating through the coordinator
         await self._coordinator.async_control_heating_loop(climate=self, pwm_state=self.pwm.state)
 
+        # Determine if we are allowed to heat, now that we know the latest flame state
+        self._update_heat_allowed()
+
         if self._calculated_setpoint is None:
             # Default to the calculated setpoint
             self._calculated_setpoint = self._calculate_control_setpoint()
@@ -950,7 +1002,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.pwm.enable()
 
         # Pulse Width Modulation
-        if not self.pulse_width_modulation_enabled:
+        if not self.pulse_width_modulation_enabled or not self._heat_allowed:
             self.pwm.reset()
         else:
             await self.pwm.update(flame=self._coordinator.flame, boiler=self._coordinator.boiler, requested_setpoint=self._calculated_setpoint)
