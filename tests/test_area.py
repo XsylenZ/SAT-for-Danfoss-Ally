@@ -56,15 +56,18 @@ def test_error_gating(current, target, hvac_action, expected) -> None:
         assert error.value == expected
 
 
-@pytest.mark.parametrize("current, target, hvac_action, expected", [
-    (19.9, 20.0, HVACAction.IDLE, 0.1),
-    (20.6, 20.0, HVACAction.HEATING, -0.6),
+@pytest.mark.parametrize("current, target, hvac_action", [
+    (18.0, 20.0, HVACAction.HEATING),
+    (18.0, 20.0, HVACAction.IDLE),
+    (18.0, 20.0, None),
+    (20.6, 20.0, HVACAction.HEATING),
 ])
-def test_stale_falls_back_to_plain_error(current, target, hvac_action, expected) -> None:
+def test_stale_is_excluded(current, target, hvac_action) -> None:
     area = create_area(create_state(current, target, hvac_action, age=AREA_STATE_MAX_AGE + 60))
 
     assert area.stale
-    assert area.error.value == expected
+    assert not area.available
+    assert area.error is None
 
 
 def test_recent_state_is_not_stale() -> None:
@@ -122,15 +125,24 @@ def test_no_demand_when_idle_and_unavailable() -> None:
     }).demand
 
 
-def test_demand_when_no_room_is_available() -> None:
+def test_unknown_demand_when_no_room_is_available() -> None:
     assert create_areas({
         "climate.radiator_1": None,
         "climate.radiator_2": create_state(19.0, 20.0, HVACAction.HEATING, state=STATE_UNAVAILABLE),
+    }).demand is None
+
+
+def test_stale_room_never_demands() -> None:
+    # A TRV frozen while calling for heat in a cold room, next to a healthy idle one
+    assert not create_areas({
+        "climate.radiator_1": create_state(18.0, 20.0, HVACAction.HEATING, age=AREA_STATE_MAX_AGE + 60),
+        "climate.radiator_2": create_state(20.5, 20.0, HVACAction.IDLE),
     }).demand
 
 
-@pytest.mark.parametrize("current, expected", [(19.9, True), (20.5, False)])
-def test_stale_room_demand_follows_plain_error(current, expected) -> None:
+def test_unknown_demand_when_all_rooms_are_stale_or_unavailable() -> None:
+    # Nothing can tell us anything anymore, so the main room has to decide
     assert create_areas({
-        "climate.radiator_1": create_state(current, 20.0, HVACAction.HEATING, age=AREA_STATE_MAX_AGE + 60),
-    }).demand == expected
+        "climate.radiator_1": create_state(18.0, 20.0, HVACAction.HEATING, age=AREA_STATE_MAX_AGE + 60),
+        "climate.radiator_2": None,
+    }).demand is None

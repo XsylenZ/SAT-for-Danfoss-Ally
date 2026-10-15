@@ -4,6 +4,7 @@ import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.template import DOMAIN as TEMPLATE_DOMAIN
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -326,7 +327,7 @@ async def test_error_source_change_does_not_kick_derivative(hass: HomeAssistant,
             },
     )],
 ])
-async def test_stale_room_reporting_again_does_not_kick_derivative(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+async def test_stale_room_is_ignored_until_it_reports_again(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
     from datetime import timedelta
     from homeassistant.util import dt
 
@@ -334,20 +335,150 @@ async def test_stale_room_reporting_again_does_not_kick_derivative(hass: HomeAss
     await climate.async_set_target_temperature(21.0)
     await climate.async_set_hvac_mode(HVACMode.HEAT)
 
-    # The room has been quiet for too long, so it falls back to its plain error and wins from the main room
+    # The room froze while calling for heat in a cold room, so it is ignored and the boiler stays off
     stale = dt.utcnow() - timedelta(seconds=AREA_STATE_MAX_AGE + 60)
-    attributes = {"current_temperature": 20.8, "temperature": 20.0, "hvac_action": "idle", "hvac_modes": [HVACMode.HEAT]}
+    attributes = {"current_temperature": 18.0, "temperature": 20.0, "hvac_action": "heating", "hvac_modes": [HVACMode.HEAT]}
     hass.states.async_set("climate.radiator_1", HVACMode.HEAT, attributes, timestamp=stale.timestamp())
     climate._async_control_pid()
-    assert climate.max_error.entity_id == "climate.radiator_1"
-    assert climate.max_error.value == -0.8
+    await climate.async_control_heating_loop()
 
-    # The room reports again and is calling for heat, the same source jumps to the overshoot hold
-    hass.states.async_set("climate.radiator_1", HVACMode.HEAT, {**attributes, "hvac_action": "heating"})
+    assert not climate.heat_demand
+    assert climate.max_error.entity_id == climate.entity_id
+    assert climate.setpoint == MINIMUM_SETPOINT
+    assert not coordinator.flame_active
+
+    # With every room out, the main room only asks for heat when it is below its own target
+    await climate.async_set_target_temperature(26.0)
+    await climate.async_control_heating_loop()
+    assert climate.heat_demand
+
+    await climate.async_set_target_temperature(21.0)
+    await coordinator.async_set_heater_state(DeviceState.OFF)
+    climate._demand_lost_at = None
+    await climate.async_control_heating_loop()
+    assert not climate.heat_demand
+    assert climate.setpoint == MINIMUM_SETPOINT
+
+    # The room reports again and takes over, without kicking the derivative
+    hass.states.async_set("climate.radiator_1", HVACMode.HEAT, attributes)
     climate.pid._last_updated -= 165
     climate._async_control_pid()
+    await climate.async_control_heating_loop()
 
+    assert climate.heat_demand
+    assert climate._heat_allowed
     assert climate.max_error.entity_id == "climate.radiator_1"
-    assert climate.max_error.value == OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD]
-    assert climate.pid.last_error == climate.max_error.value
     assert climate.pid.raw_derivative == 0
+    assert climate.requested_setpoint > COLD_SETPOINT
+
+
+@pytest.mark.parametrize(*[
+    "domains, data, options, config",
+    [(
+            [(TEMPLATE_DOMAIN, 1)],
+            {
+                CONF_MODE: MODE_FAKE,
+                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                CONF_MINIMUM_SETPOINT: 57,
+                CONF_MAXIMUM_SETPOINT: 75,
+                CONF_ROOMS: ["climate.radiator_1"],
+            },
+            {
+                CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+            },
+            {
+                TEMPLATE_DOMAIN: [
+                    {
+                        SENSOR_DOMAIN: [
+                            {
+                                "name": "test_inside_sensor",
+                                "state": "{{ 20.9 | float }}",
+                            },
+                            {
+                                "name": "test_outside_sensor",
+                                "state": "{{ 9.9 | float }}",
+                            }
+                        ]
+                    },
+                ],
+            },
+    )],
+])
+async def test_failsafe_without_inside_temperature(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    room = {"current_temperature": 19.0, "temperature": 20.0, "hvac_action": "heating", "hvac_modes": [HVACMode.HEAT]}
+    hass.states.async_set("climate.radiator_1", HVACMode.HEAT, room)
+
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert coordinator.flame_active
+
+    # The inside sensor is gone, but the room still tells us it needs heat, so we keep heating for it
+    hass.states.async_set("sensor.test_inside_sensor", STATE_UNAVAILABLE)
+    await climate.async_control_heating_loop()
+    assert not climate.extra_state_attributes["failsafe"]
+    assert climate.heat_demand
+    assert coordinator.flame_active
+
+    # The room is gone as well, so nothing can tell us anything: turn the heater off, don't keep the old setpoint
+    hass.states.async_set("climate.radiator_1", STATE_UNAVAILABLE, room)
+    await climate.async_control_heating_loop()
+    assert climate.extra_state_attributes["failsafe"]
+    assert climate.setpoint == MINIMUM_SETPOINT
+    assert coordinator.setpoint == MINIMUM_SETPOINT
+    assert not coordinator.flame_active
+
+    # Both are back, so we resume
+    hass.states.async_set("sensor.test_inside_sensor", "20.9")
+    hass.states.async_set("climate.radiator_1", HVACMode.HEAT, room)
+    await climate.async_control_heating_loop()
+    assert not climate.extra_state_attributes["failsafe"]
+    assert climate.heat_demand
+
+
+@pytest.mark.parametrize(*[
+    "domains, data, options, config",
+    [(
+            [(TEMPLATE_DOMAIN, 1)],
+            {
+                CONF_MODE: MODE_FAKE,
+                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                CONF_MINIMUM_SETPOINT: 57,
+                CONF_MAXIMUM_SETPOINT: 75,
+            },
+            {
+                CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+            },
+            {
+                TEMPLATE_DOMAIN: [
+                    {
+                        SENSOR_DOMAIN: [
+                            {
+                                "name": "test_inside_sensor",
+                                "state": "{{ 18.0 | float }}",
+                            },
+                            {
+                                "name": "test_outside_sensor",
+                                "state": "{{ 9.9 | float }}",
+                            }
+                        ]
+                    },
+                ],
+            },
+    )],
+])
+async def test_failsafe_without_rooms(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+    await climate.async_control_heating_loop()
+    assert coordinator.flame_active
+
+    # Without rooms, losing the outside sensor means we can't calculate anything anymore
+    hass.states.async_set("sensor.test_outside_sensor", STATE_UNAVAILABLE)
+    await climate.async_control_heating_loop()
+    assert climate.extra_state_attributes["failsafe"]
+    assert coordinator.setpoint == MINIMUM_SETPOINT
+    assert not coordinator.flame_active

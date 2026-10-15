@@ -75,11 +75,15 @@ class Area:
         if target_temperature is None or current_temperature is None:
             return None
 
+        # Thermostats that stopped reporting can't be trusted, so they are left out just like unavailable ones
+        if self.stale:
+            return None
+
         error = round(target_temperature - current_temperature, 2)
         hvac_action = self.state.attributes.get("hvac_action")
 
-        # Thermostats that don't report an action, or that stopped reporting, behave like before
-        if hvac_action is None or self.stale:
+        # Thermostats that don't report an action behave like before
+        if hvac_action is None:
             return Error(self._entity_id, error)
 
         # The room is not calling for heat, so it should not drive the boiler
@@ -99,8 +103,13 @@ class Area:
         if age <= AREA_STATE_MAX_AGE:
             return False
 
-        _LOGGER.debug("Area %s stale (age=%.0fs > %ds), falling back to the plain error", self._entity_id, age, AREA_STATE_MAX_AGE)
+        _LOGGER.debug("Area %s stale (age=%.0fs > %ds), leaving it out", self._entity_id, age, AREA_STATE_MAX_AGE)
         return True
+
+    @property
+    def available(self) -> bool:
+        """Return True when the climate entity is available and still reporting."""
+        return self.state is not None and not self.stale
 
     @property
     def weight(self) -> float | None:
@@ -144,11 +153,10 @@ class Areas:
         return Errors([area.error for area in self._areas if area.error is not None])
 
     @property
-    def demand(self) -> bool:
-        """Return True when any area is calling for heat, or when no area can tell us."""
-        # Without any available area we can't judge the demand, so behave like before
-        if all(area.state is None for area in self._areas):
-            return True
+    def demand(self) -> bool | None:
+        """Return True when any area is calling for heat, or None when no area can tell us."""
+        if not any(area.available for area in self._areas):
+            return None
 
         return any(error.value > 0 for error in self.errors)
 
@@ -164,10 +172,6 @@ class Areas:
 
     def items(self) -> list[str]:
         return self._entity_ids
-
-    def is_stale(self, entity_id: str) -> bool:
-        """Return True when the area with the given entity id falls back to the plain error."""
-        return any(area.id == entity_id and area.stale for area in self._areas)
 
     async def async_added_to_hass(self, hass: HomeAssistant):
         for area in self._areas:

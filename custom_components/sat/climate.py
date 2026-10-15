@@ -116,6 +116,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         self._heat_allowed = True
         self._demand_lost_at = None
         self._error_source = None
+        self._failsafe_active = False
 
         self._hvac_mode = None
         self._target_temperature = None
@@ -413,6 +414,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
             "heat_demand": self.heat_demand,
             "heat_allowed": self._heat_allowed,
+            "failsafe": self._failsafe_active,
 
             "pulse_width_modulation_enabled": self.pwm.enabled,
             "pulse_width_modulation_active": self.pulse_width_modulation_enabled,
@@ -511,7 +513,11 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         if self._heating_mode == HEATING_MODE_ECO or len(self.areas.items()) == 0:
             return True
 
-        return self.areas.demand
+        # None of the rooms can tell us anything, so the main room decides
+        if (demand := self.areas.demand) is None:
+            return self.error > 0
+
+        return demand
 
     @property
     def setpoint(self) -> float | None:
@@ -787,14 +793,12 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.areas.heating_curves.update(self.current_outside_temperature)
             self.heating_curve.update(self.target_temperature, self.current_outside_temperature)
 
-        # Restart the PID from the new error when another room takes over, or when a room switches between its gated and its stale (plain) error,
-        # so the jump between them doesn't kick the derivative
-        error_source = (max_error.entity_id, self.areas.is_stale(max_error.entity_id))
-        if not reset and self._error_source is not None and error_source != self._error_source:
-            _LOGGER.info(f"Error source changed from {self._error_source} to {error_source}, resetting the PID controller")
+        # Restart the PID from the new error when another room takes over, so the jump between them doesn't kick the derivative
+        if not reset and self._error_source is not None and max_error.entity_id != self._error_source:
+            _LOGGER.info(f"Error source changed from {self._error_source} to {max_error.entity_id}, resetting the PID controller")
             self.pid.update_reset(error=max_error, heating_curve_value=self.heating_curve.value)
 
-        self._error_source = error_source
+        self._error_source = max_error.entity_id
 
         # Update the PID controller with the maximum error
         if not reset:
@@ -928,6 +932,24 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._heat_allowed = False
             _LOGGER.info("Finished the burn without any room calling for heat, stopping.")
 
+    async def _async_control_failsafe(self) -> None:
+        """Turn the heater off, because we are missing the temperatures to control it."""
+        if not self._failsafe_active:
+            _LOGGER.warning(
+                "Missing temperatures (inside: %s, target: %s, outside: %s), turning the heater off.",
+                self.current_temperature, self.target_temperature, self.current_outside_temperature
+            )
+            self._failsafe_active = True
+
+        self.pwm.reset()
+        self._calculated_setpoint = None
+        self._setpoint = MINIMUM_SETPOINT
+
+        await self._coordinator.async_set_control_setpoint(MINIMUM_SETPOINT)
+        await self.async_set_heater_state(DeviceState.OFF)
+
+        self.async_write_ha_state()
+
     def reset_control_state(self):
         """Reset control state when major changes occur."""
         self.pwm.disable()
@@ -977,13 +999,18 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Let the sub know we have run
         self._control_heating_loop_unsub = None
 
-        # If the current, target or outside temperature is not available, do nothing
-        if self.current_temperature is None or self.target_temperature is None or self.current_outside_temperature is None:
-            return
-
         # No need to do anything if we are not on
         if self.hvac_mode != HVACMode.HEAT:
             return
+
+        # Without the temperatures we need, make sure the boiler doesn't keep heating on an old setpoint
+        if self.target_temperature is None or self.current_outside_temperature is None or (self.current_temperature is None and self.areas.demand is None):
+            await self._async_control_failsafe()
+            return
+
+        if self._failsafe_active:
+            _LOGGER.warning("Temperatures are available again, resuming control.")
+            self._failsafe_active = False
 
         # Control the heating through the coordinator
         await self._coordinator.async_control_heating_loop(climate=self, pwm_state=self.pwm.state)
