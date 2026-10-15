@@ -165,6 +165,10 @@ class Areas:
     def items(self) -> list[str]:
         return self._entity_ids
 
+    def is_stale(self, entity_id: str) -> bool:
+        """Return True when the area with the given entity id falls back to the plain error."""
+        return any(area.id == entity_id and area.stale for area in self._areas)
+
     async def async_added_to_hass(self, hass: HomeAssistant):
         for area in self._areas:
             await area.async_added_to_hass(hass)

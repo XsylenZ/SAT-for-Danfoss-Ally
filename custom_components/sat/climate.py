@@ -787,12 +787,14 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.areas.heating_curves.update(self.current_outside_temperature)
             self.heating_curve.update(self.target_temperature, self.current_outside_temperature)
 
-        # Restart the PID from the new error when another room takes over, so the jump between them doesn't kick the derivative
-        if not reset and self._error_source is not None and max_error.entity_id != self._error_source:
-            _LOGGER.info(f"Error source changed from {self._error_source} to {max_error.entity_id}, resetting the PID controller")
+        # Restart the PID from the new error when another room takes over, or when a room switches between its gated and its stale (plain) error,
+        # so the jump between them doesn't kick the derivative
+        error_source = (max_error.entity_id, self.areas.is_stale(max_error.entity_id))
+        if not reset and self._error_source is not None and error_source != self._error_source:
+            _LOGGER.info(f"Error source changed from {self._error_source} to {error_source}, resetting the PID controller")
             self.pid.update_reset(error=max_error, heating_curve_value=self.heating_curve.value)
 
-        self._error_source = max_error.entity_id
+        self._error_source = error_source
 
         # Update the PID controller with the maximum error
         if not reset:

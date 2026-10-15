@@ -291,3 +291,63 @@ async def test_error_source_change_does_not_kick_derivative(hass: HomeAssistant,
     assert climate.pid.last_error == climate.max_error.value
     assert climate.pid.raw_derivative == 0
     assert climate.requested_setpoint < 50
+
+
+@pytest.mark.parametrize(*[
+    "domains, data, options, config",
+    [(
+            [(TEMPLATE_DOMAIN, 1)],
+            {
+                CONF_MODE: MODE_FAKE,
+                CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
+                CONF_MINIMUM_SETPOINT: 57,
+                CONF_MAXIMUM_SETPOINT: 75,
+                CONF_ROOMS: ["climate.radiator_1"],
+            },
+            {
+                CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_FORCE_PULSE_WIDTH_MODULATION: True,
+            },
+            {
+                TEMPLATE_DOMAIN: [
+                    {
+                        SENSOR_DOMAIN: [
+                            {
+                                "name": "test_inside_sensor",
+                                "state": "{{ 24.8 | float }}",
+                            },
+                            {
+                                "name": "test_outside_sensor",
+                                "state": "{{ 9.9 | float }}",
+                            }
+                        ]
+                    },
+                ],
+            },
+    )],
+])
+async def test_stale_room_reporting_again_does_not_kick_derivative(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    from datetime import timedelta
+    from homeassistant.util import dt
+
+    await coordinator.async_set_boiler_temperature(57)
+    await climate.async_set_target_temperature(21.0)
+    await climate.async_set_hvac_mode(HVACMode.HEAT)
+
+    # The room has been quiet for too long, so it falls back to its plain error and wins from the main room
+    stale = dt.utcnow() - timedelta(seconds=AREA_STATE_MAX_AGE + 60)
+    attributes = {"current_temperature": 20.8, "temperature": 20.0, "hvac_action": "idle", "hvac_modes": [HVACMode.HEAT]}
+    hass.states.async_set("climate.radiator_1", HVACMode.HEAT, attributes, timestamp=stale.timestamp())
+    climate._async_control_pid()
+    assert climate.max_error.entity_id == "climate.radiator_1"
+    assert climate.max_error.value == -0.8
+
+    # The room reports again and is calling for heat, the same source jumps to the overshoot hold
+    hass.states.async_set("climate.radiator_1", HVACMode.HEAT, {**attributes, "hvac_action": "heating"})
+    climate.pid._last_updated -= 165
+    climate._async_control_pid()
+
+    assert climate.max_error.entity_id == "climate.radiator_1"
+    assert climate.max_error.value == OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD]
+    assert climate.pid.last_error == climate.max_error.value
+    assert climate.pid.raw_derivative == 0
