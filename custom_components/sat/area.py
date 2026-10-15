@@ -7,7 +7,7 @@ from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant, State
 from homeassistant.util import dt
 
-from .const import CONF_ROOMS, AREA_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE
+from .const import CONF_ROOMS, CONF_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE
 from .errors import Errors, Error
 from .heating_curve import HeatingCurve
 from .helpers import float_value
@@ -26,6 +26,7 @@ class Area:
     def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any], entity_id: str):
         self._entity_id: str = entity_id
         self._hass: HomeAssistant | None = None
+        self._overshoot_hold: float = float(config_options.get(CONF_OVERSHOOT_HOLD))
 
         # Create controllers with the given configuration options
         self.pid: PID = create_pid_controller(config_options)
@@ -86,7 +87,7 @@ class Area:
             return None
 
         # The room is calling for heat, keep requesting heat until its own thermostat is satisfied
-        return Error(self._entity_id, max(error, AREA_OVERSHOOT_HOLD))
+        return Error(self._entity_id, max(error, self._overshoot_hold))
 
     @property
     def stale(self) -> bool:

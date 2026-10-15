@@ -606,6 +606,11 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
             selector.NumberSelectorConfig(min=0.1, max=12, step=0.1)
         )
 
+        # Kept above DEADBAND, so a held room never feeds the PID integral or the heating curve autotune
+        schema[vol.Required(CONF_OVERSHOOT_HOLD, default=options[CONF_OVERSHOOT_HOLD])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0.2, max=3.0, step=0.1, unit_of_measurement="°C")
+        )
+
         if options[CONF_AUTOMATIC_GAINS]:
             if int(options[CONF_PID_CONTROLLER_VERSION]) < 3:
                 schema[vol.Required(CONF_AUTOMATIC_GAINS_VALUE, default=options[CONF_AUTOMATIC_GAINS_VALUE])] = selector.NumberSelector(

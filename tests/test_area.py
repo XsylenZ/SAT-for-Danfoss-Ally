@@ -39,9 +39,9 @@ def create_state(current: float, target: float, hvac_action: str | None, age: fl
     # Calling for heat: the real error when it is larger than the hold
     (19.0, 20.0, HVACAction.HEATING, 1.0),
     # Calling for heat: held at the floor around and above the target
-    (19.9, 20.0, HVACAction.HEATING, AREA_OVERSHOOT_HOLD),
-    (20.0, 20.0, HVACAction.HEATING, AREA_OVERSHOOT_HOLD),
-    (20.6, 20.0, HVACAction.HEATING, AREA_OVERSHOOT_HOLD),
+    (19.9, 20.0, HVACAction.HEATING, OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD]),
+    (20.0, 20.0, HVACAction.HEATING, OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD]),
+    (20.6, 20.0, HVACAction.HEATING, OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD]),
     # No action reported: plain error, like before
     (19.9, 20.0, None, 0.1),
     (20.6, 20.0, None, -0.6),
@@ -71,7 +71,7 @@ def test_recent_state_is_not_stale() -> None:
     area = create_area(create_state(20.6, 20.0, HVACAction.HEATING, age=AREA_STATE_MAX_AGE - 60))
 
     assert not area.stale
-    assert area.error.value == AREA_OVERSHOOT_HOLD
+    assert area.error.value == OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD]
 
 
 def test_unavailable_is_excluded() -> None:
@@ -82,4 +82,12 @@ def test_unavailable_is_excluded() -> None:
 
 
 def test_hold_stays_outside_pid_deadband() -> None:
-    assert AREA_OVERSHOOT_HOLD > DEADBAND
+    assert OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD] > DEADBAND
+
+
+def test_hold_is_configurable() -> None:
+    options = {**OPTIONS_DEFAULTS, CONF_OVERSHOOT_HOLD: 1.2}
+    area = Area(MappingProxyType(DEFAULT_USER_DATA), MappingProxyType(options), ENTITY_ID)
+    area._hass = SimpleNamespace(states=SimpleNamespace(get=lambda entity_id: create_state(20.6, 20.0, HVACAction.HEATING)))
+
+    assert area.error.value == 1.2

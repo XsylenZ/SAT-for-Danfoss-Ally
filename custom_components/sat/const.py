@@ -22,9 +22,8 @@ DEADBAND = 0.1
 BOILER_DEADBAND = 2
 
 # Room demand gating (rooms only contribute an error while their thermostat reports it is heating)
-# The hold is kept above DEADBAND so a held room never feeds the PID integral or the heating curve autotune
-AREA_OVERSHOOT_HOLD = 0.2
 AREA_STATE_MAX_AGE = 3600
+
 HEATER_STARTUP_TIMEFRAME = 180
 
 COLD_SETPOINT = 28.2
@@ -80,6 +79,7 @@ CONF_HUMIDITY_SENSOR_ENTITY_ID = "humidity_sensor_entity_id"
 CONF_HEATING_MODE = "heating_mode"
 CONF_HEATING_SYSTEM = "heating_system"
 CONF_HEATING_CURVE_COEFFICIENT = "heating_curve_coefficient"
+CONF_OVERSHOOT_HOLD = "overshoot_hold"
 
 CONF_PID_CONTROLLER_VERSION = "pid_controller_version"
 
@@ -155,6 +155,7 @@ OPTIONS_DEFAULTS = {
     CONF_COMFORT_TEMPERATURE: 20,
 
     CONF_HEATING_CURVE_COEFFICIENT: 2.0,
+    CONF_OVERSHOOT_HOLD: 0.5,
     CONF_HEATING_MODE: HEATING_MODE_COMFORT,
     CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
 
