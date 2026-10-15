@@ -20,6 +20,11 @@ MODE_SIMULATOR = "simulator"
 
 DEADBAND = 0.1
 BOILER_DEADBAND = 2
+
+# Room demand gating (rooms only contribute an error while their thermostat reports it is heating)
+# The hold is kept above DEADBAND so a held room never feeds the PID integral or the heating curve autotune
+AREA_OVERSHOOT_HOLD = 0.2
+AREA_STATE_MAX_AGE = 3600
 HEATER_STARTUP_TIMEFRAME = 180
 
 COLD_SETPOINT = 28.2

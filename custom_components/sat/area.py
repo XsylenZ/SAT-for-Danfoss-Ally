@@ -1,11 +1,13 @@
+import logging
 from types import MappingProxyType
 from typing import Any
 
-from homeassistant.components.climate import HVACMode
+from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant, State
+from homeassistant.util import dt
 
-from .const import CONF_ROOMS
+from .const import CONF_ROOMS, AREA_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE
 from .errors import Errors, Error
 from .heating_curve import HeatingCurve
 from .helpers import float_value
@@ -14,6 +16,8 @@ from .util import (
     create_pid_controller,
     create_heating_curve_controller,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 SENSOR_TEMPERATURE_ID = "sensor_temperature_id"
 
@@ -63,14 +67,39 @@ class Area:
 
     @property
     def error(self) -> Error | None:
-        """Calculate the temperature error."""
+        """Calculate the temperature error, gated on whether the room is actually calling for heat."""
         target_temperature = self.target_temperature
         current_temperature = self.current_temperature
 
         if target_temperature is None or current_temperature is None:
             return None
 
-        return Error(self._entity_id, round(target_temperature - current_temperature, 2))
+        error = round(target_temperature - current_temperature, 2)
+        hvac_action = self.state.attributes.get("hvac_action")
+
+        # Thermostats that don't report an action, or that stopped reporting, behave like before
+        if hvac_action is None or self.stale:
+            return Error(self._entity_id, error)
+
+        # The room is not calling for heat, so it should not drive the boiler
+        if hvac_action != HVACAction.HEATING:
+            return None
+
+        # The room is calling for heat, keep requesting heat until its own thermostat is satisfied
+        return Error(self._entity_id, max(error, AREA_OVERSHOOT_HOLD))
+
+    @property
+    def stale(self) -> bool:
+        """Return True when the climate entity has not reported anything for too long."""
+        if (state := self.state) is None:
+            return False
+
+        age = (dt.utcnow() - state.last_reported).total_seconds()
+        if age <= AREA_STATE_MAX_AGE:
+            return False
+
+        _LOGGER.debug("Area %s stale (age=%.0fs > %ds), falling back to the plain error", self._entity_id, age, AREA_STATE_MAX_AGE)
+        return True
 
     @property
     def weight(self) -> float | None:
