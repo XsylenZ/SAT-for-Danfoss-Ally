@@ -574,6 +574,10 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @property
     def pulse_width_modulation_enabled(self) -> bool:
         """Return True if pulse width modulation is enabled, False otherwise."""
+        # Nothing may heat, so there is nothing to modulate either
+        if not self._heat_allowed:
+            return False
+
         if not self._coordinator.supports_setpoint_management or self._force_pulse_width_modulation:
             return True
 
@@ -1031,7 +1035,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.pwm.enable()
 
         # Pulse Width Modulation
-        if not self.pulse_width_modulation_enabled or not self._heat_allowed:
+        if not self.pulse_width_modulation_enabled:
             self.pwm.reset()
         else:
             await self.pwm.update(flame=self._coordinator.flame, boiler=self._coordinator.boiler, requested_setpoint=self._calculated_setpoint)

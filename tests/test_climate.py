@@ -199,7 +199,8 @@ async def test_no_heat_without_room_demand(hass: HomeAssistant, entry: MockConfi
     # The main room and the heating curve ask for heat, but the only room is idle
     await set_room("idle")
     assert not climate.heat_demand
-    assert climate.pulse_width_modulation_enabled
+    assert not climate.pulse_width_modulation_enabled
+    assert not climate.extra_state_attributes["pulse_width_modulation_active"]
     assert climate.pwm.status == PWMStatus.IDLE
     assert climate.setpoint == MINIMUM_SETPOINT
     assert not coordinator.flame_active
@@ -207,6 +208,7 @@ async def test_no_heat_without_room_demand(hass: HomeAssistant, entry: MockConfi
     # As soon as the room calls for heat, the boiler is allowed to fire again
     await set_room("heating")
     assert climate.heat_demand
+    assert climate.pulse_width_modulation_enabled
     assert climate.setpoint > COLD_SETPOINT
     assert coordinator.flame_active
 
