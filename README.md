@@ -61,43 +61,69 @@ TRV and the current state of the boiler control. It contains no passwords or tok
 
 ## Zones
 
-Rooms are set up as **zones**, based on your Home Assistant areas. After adding the integration,
-open its options and choose **Zones**:
+Rooms are set up as **zones**, based on your Home Assistant areas. Open the options of the
+integration (**Configure**) and choose **Zones**. The screen shows every zone with its settings and
+TRVs, and a dropdown to:
 
-1. Pick the areas whose TRVs this integration should control. Only areas that contain a Danfoss
-   Ally are listed.
-2. Configure each zone:
-   - **Independent**: the boiler fires as soon as one TRV in the zone asks for heat. Use this for
-     rooms that must heat on their own, like a study or bedrooms.
-   - **Together**: the boiler waits until enough TRVs in the zone ask for heat (a minimum number
-     of TRVs, or a minimum total valve opening from `pi_heating_demand`), so it can burn longer
-     instead of short-cycling on one small radiator. Once the zone calls for heat, it keeps calling
-     until all of its TRVs are satisfied. **Never wait longer than** makes sure a single TRV still
-     gets heat after a while.
+- **change one zone**: its settings only, then you are back at the overview;
+- **add or remove zones**: pick the areas whose TRVs this integration controls. Only areas that
+  contain a Danfoss Ally are listed. Existing zones keep their settings;
+- **save and close**: nothing is saved before this.
+
+Every zone either heats:
+
+- **Independent**: the boiler fires as soon as one TRV in the zone asks for heat. Use this for
+  rooms that must heat on their own, like a study or bedrooms.
+- **Together**: the boiler waits until enough TRVs in the zone ask for heat (a minimum number of
+  TRVs, or a minimum total valve opening from `pi_heating_demand`), so it can burn longer instead of
+  short-cycling on one small radiator. Once the zone calls for heat, it keeps calling until all of
+  its TRVs are satisfied. **Never wait longer than** makes sure a single TRV still gets heat after a
+  while. New zones with more than one TRV start as Together.
 
 The TRVs of a zone are found automatically: every Danfoss Ally (`014G2461`) device in that area.
 Other climate devices in the same area, like air conditioning, are ignored. Adding, moving or
 removing a TRV in Home Assistant is picked up right away, without reconfiguring.
 
-The `zones` attribute of the climate entity shows every zone, its TRVs, which of them are heating,
+The `zones` attribute of the heating switch shows every zone, its TRVs, which of them are heating,
 their total valve opening and whether the zone is calling for heat.
+
+## Settings
+
+Changing any setting reloads the integration; no restart of Home Assistant is needed.
+
+| Where | Settings |
+|---|---|
+| Configure → General | PID controller, maximum setpoint, heating curve coefficient, **Overshoot Hold** |
+| Configure → Zones | The zones and their settings |
+| Configure → System Configuration | Duty cycles, sensor age, **frost guard**, **outside temperature fallback** |
+| Configure → Advanced Options | PWM, consumption, relative modulation, sample time |
+| ⋮ → Reconfigure | Gateway connection, outside temperature, overshoot protection value |
 
 ## What it changes compared to SAT
 
+- The TRVs are the thermostats: no inside sensor, presets, window sensors or target temperature of
+  its own; the boiler is controlled by a switch, driven by zones of TRVs.
 - A room only drives the boiler while its TRV reports that it is actually heating, and keeps
   requesting heat until the TRV itself is satisfied (configurable **Overshoot Hold**).
-- The boiler never fires when no room is calling for heat. A burn that is already running may
+- The boiler never fires when no zone is calling for heat. A burn that is already running may
   finish, for at most 10 minutes.
 - TRVs that stop reporting, or become unavailable, are left out instead of keeping the boiler
-  burning. Without the temperatures needed to control the boiler, the heater is turned off.
+  burning. Without any available TRV, only the frost guard heats.
+- Without the outside temperature, the boiler keeps heating on the last known and then an assumed
+  value, instead of keeping its last setpoint.
 - Switching the room that drives the boiler no longer causes a derivative spike in the PID.
+- Changing settings keeps the connection to the gateway; a gateway that doesn't accept the
+  connection is retried by Home Assistant instead of hanging.
 - No error reporting to external services.
 
 ## Installation
 
 1. In HACS, add this repository as a custom repository of type **Integration**.
 2. Download **Danfoss Ally OTGW** and restart Home Assistant.
-3. Add the integration under **Settings → Devices & services**.
+3. Add the integration under **Settings → Devices & services**: the gateway connection, the
+   outside temperature and the overshoot protection value.
+4. In **Configure → Zones**, add the areas with your Danfoss Ally TRVs.
+5. Turn on the heating switch.
 
 Do not run this integration and SAT against the same boiler at the same time: both would try
 to control the OpenTherm Gateway.
