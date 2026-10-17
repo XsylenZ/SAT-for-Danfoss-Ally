@@ -43,13 +43,14 @@ def discover_trvs(hass: HomeAssistant, area_id: str | None = None) -> list[Trv]:
     devices = device_registry.async_get(hass)
 
     trvs = []
-    for device in devices.devices.values():
-        if device.disabled or not is_ally(device):
+    for climate in list(entities.entities.values()):
+        if climate.domain != CLIMATE_DOMAIN or climate.disabled or climate.device_id is None:
+            continue
+
+        if (device := devices.async_get(climate.device_id)) is None or device.disabled or not is_ally(device):
             continue
 
         device_entities = [entry for entry in entity_registry.async_entries_for_device(entities, device.id) if not entry.disabled]
-        if (climate := next((entry for entry in device_entities if entry.domain == CLIMATE_DOMAIN), None)) is None:
-            continue
 
         # An area assigned to the entity itself takes precedence over the area of its device
         trv_area_id = climate.area_id or device.area_id

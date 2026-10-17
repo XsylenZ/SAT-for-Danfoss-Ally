@@ -150,6 +150,14 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         # Let the coordinator know we are ready
         await self._coordinator.async_added_to_hass()
 
+    async def async_will_remove_from_hass(self) -> None:
+        """Make sure a scheduled run of the control loop doesn't use the connection after we are gone."""
+        if self._control_heating_loop_unsub is not None:
+            self._control_heating_loop_unsub()
+            self._control_heating_loop_unsub = None
+
+        await super().async_will_remove_from_hass()
+
     async def _register_event_listeners(self, _time: Optional[datetime] = None):
         """Register event listeners."""
         self.async_on_remove(

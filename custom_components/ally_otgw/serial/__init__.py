@@ -14,6 +14,9 @@ from ..coordinator import DeviceState, SatDataUpdateCoordinator
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
+# How long we wait for the gateway to accept our connection, before Home Assistant retries later
+CONNECT_TIMEOUT = 30
+
 # Sensors
 TRANSLATE_SOURCE = {
     gw_vars.OTGW: None,
@@ -158,8 +161,18 @@ class SatSerialCoordinator(SatDataUpdateCoordinator):
         return self.data[BOILER].get(key)
 
     async def async_connect(self) -> SatSerialCoordinator:
+        # pyotgw keeps retrying forever when the gateway doesn't accept us, e.g. while it still holds on to our previous
+        # connection. Give up after a while instead, so Home Assistant retries the setup later rather than hanging.
+        connect = asyncio.ensure_future(self._api.connect(port=self._port, timeout=5))
+        done, _ = await asyncio.wait({connect}, timeout=CONNECT_TIMEOUT)
+
+        if not done:
+            await self._api.disconnect()
+            raise ConfigEntryNotReady(f"Could not connect to gateway at {self._port} within {CONNECT_TIMEOUT} seconds")
+
         try:
-            await self._api.connect(port=self._port, timeout=5)
+            if not connect.result():
+                raise ConfigEntryNotReady(f"Could not connect to gateway at {self._port}")
         except (asyncio.TimeoutError, ConnectionError, SerialException) as exception:
             raise ConfigEntryNotReady(f"Could not connect to gateway at {self._port}: {exception}") from exception
 

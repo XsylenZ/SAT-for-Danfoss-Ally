@@ -60,5 +60,12 @@ class ManufacturerFactory:
 
     @staticmethod
     def _import_class(module_name: str, class_name: str) -> Type[Manufacturer]:
-        """Dynamically import and return a Manufacturer class."""
-        return getattr(import_module(f".manufacturers.{module_name}", __package__), class_name)
+        """Return a Manufacturer class."""
+        return _CLASSES[class_name]
+
+
+# Import the manufacturers together with this module, Home Assistant does that outside the event loop
+_CLASSES: dict[str, Type[Manufacturer]] = {
+    name: getattr(import_module(f".manufacturers.{snake_case(name)}", __package__), name)
+    for name in MANUFACTURERS
+}

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -68,19 +67,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     This function is called by Home Assistant when the integration is being removed.
     """
 
-    _climate = hass.data[DOMAIN][entry.entry_id][CLIMATE]
-    _coordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR]
+    # Stop the entities first, so nothing uses the connection to the boiler anymore
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    await _coordinator.async_will_remove_from_hass()
-
-    unloaded = all(
-        # Forward entry unload for used platforms
-        await asyncio.gather(hass.config_entries.async_unload_platforms(entry, PLATFORMS))
-    )
+    # Then close the connection, so the gateway accepts the next one right away
+    if (data := hass.data.get(DOMAIN, {}).get(entry.entry_id)) is not None:
+        await data[COORDINATOR].async_will_remove_from_hass()
 
     # Remove the entry from the data dictionary if all components are unloaded successfully
     if unloaded:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unloaded
 
@@ -91,11 +87,8 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
     This function is called by Home Assistant when the integration configuration is updated.
     """
-    # Unload the entry and its dependent components
-    await async_unload_entry(hass, entry)
-
-    # Set up the entry again
-    await async_setup_entry(hass, entry)
+    # Let Home Assistant reload the entry, so the unload callbacks (like this update listener) run as well
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
