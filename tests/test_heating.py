@@ -16,7 +16,8 @@ from custom_components.ally_otgw.fake import SatFakeCoordinator
 from custom_components.ally_otgw.switch import SatHeating
 from tests.helpers import add_trv
 
-ZONE = [{CONF_ZONE_AREA: "woonkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT}]
+# Without a minimum difference, so the original scenarios of SAT with a room 0.1 below its target still heat
+ZONE = [{CONF_ZONE_AREA: "woonkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_DIFFERENCE: 0}]
 
 
 def setup(minimum_setpoint: float = 57, outside: float = 9.9, **options):

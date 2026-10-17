@@ -119,7 +119,7 @@ def create_areas(states: dict[str, State | None], zones: dict[str, dict] | None 
 def test_demand_when_a_room_is_heating() -> None:
     assert create_areas({
         "climate.radiator_1": create_state(20.5, 20.0, HVACAction.IDLE),
-        "climate.radiator_2": create_state(20.5, 20.0, HVACAction.HEATING),
+        "climate.radiator_2": create_state(19.5, 20.0, HVACAction.HEATING),
     }).demand
 
 
@@ -197,7 +197,7 @@ def test_a_real_error_larger_than_the_hold_still_counts() -> None:
 def test_the_room_that_needs_the_most_decides() -> None:
     areas = create_areas(
         {
-            "climate.woonkamer": create_state(20.4, 20.5, HVACAction.HEATING),
+            "climate.woonkamer": create_state(20.0, 20.5, HVACAction.HEATING),
             "climate.werkkamer": create_state(22.1, 22.5, HVACAction.HEATING),
         },
         {
@@ -210,5 +210,5 @@ def test_the_room_that_needs_the_most_decides() -> None:
     errors = {error.entity_id: error.value for error in areas.errors}
 
     # The wide open valve keeps almost the full hold and drives the boiler, the nearly closed one doesn't ask for heat at all
-    assert errors == {"climate.woonkamer": round(OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD] * 0.95, 2)}
+    assert errors == {"climate.woonkamer": 0.5}
     assert max(areas.errors, key=lambda error: error.value).entity_id == "climate.woonkamer"

@@ -40,6 +40,7 @@ ZONE_TEXTS = {
         "none": "No zones yet, choose *Add or remove zones*.", "no_trvs": "no Danfoss Ally TRVs found in this area",
         "load_balancing": ", load balancing",
         "minimum_opening": ", from {minimum_opening}% valve opening",
+        "minimum_difference": ", from {minimum_difference:g} °C below target",
     },
     "nl": {
         "independent": "Zelfstandig", "together": "Samen",
@@ -48,6 +49,7 @@ ZONE_TEXTS = {
         "none": "Nog geen zones, kies *Zones toevoegen of verwijderen*.", "no_trvs": "geen Danfoss Ally-kranen gevonden in deze ruimte",
         "load_balancing": ", lastverdeling",
         "minimum_opening": ", vanaf {minimum_opening}% klepopening",
+        "minimum_difference": ", vanaf {minimum_difference:g} °C onder doel",
     },
 }
 
@@ -674,6 +676,9 @@ class SatOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                 vol.Required(CONF_ZONE_MINIMUM_OPENING, default=settings[CONF_ZONE_MINIMUM_OPENING]): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=0, max=100, step=5, unit_of_measurement="%")
                 ),
+                vol.Required(CONF_ZONE_MINIMUM_DIFFERENCE, default=settings[CONF_ZONE_MINIMUM_DIFFERENCE]): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=2, step=0.1, unit_of_measurement="°C")
+                ),
                 vol.Required(CONF_ZONE_MINIMUM_OPEN, default=settings[CONF_ZONE_MINIMUM_OPEN]): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=1, max=10, step=1, mode=selector.NumberSelectorMode.BOX)
                 ),
@@ -711,6 +716,9 @@ class SatOptionsFlowHandler(config_entries.OptionsFlowWithReload):
         line = f"- **{self._area_name(zone[CONF_ZONE_AREA])}**: {texts[settings[CONF_ZONE_MODE]]}"
         if settings[CONF_ZONE_MINIMUM_OPENING] > 0:
             line += texts["minimum_opening"].format(minimum_opening=int(settings[CONF_ZONE_MINIMUM_OPENING]))
+
+        if settings[CONF_ZONE_MINIMUM_DIFFERENCE] > 0:
+            line += texts["minimum_difference"].format(minimum_difference=settings[CONF_ZONE_MINIMUM_DIFFERENCE])
         if settings[CONF_ZONE_MODE] == ZONE_MODE_TOGETHER:
             line += texts["rules"].format(
                 minimum_open=int(settings[CONF_ZONE_MINIMUM_OPEN]),

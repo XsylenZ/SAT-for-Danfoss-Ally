@@ -256,7 +256,8 @@
           "minimum_demand": "Of minimale totale klepopening",
           "maximum_wait": "Nooit langer wachten dan",
           "load_balancing": "Lastverdeling",
-          "minimum_opening": "Minimale klepopening"
+          "minimum_opening": "Minimale klepopening",
+          "minimum_difference": "Minimaal temperatuurverschil"
         },
         "data_description": {
           "mode": "Hoe de kranen in deze zone om warmte vragen.",
@@ -264,7 +265,8 @@
           "minimum_demand": "Alleen bij Samen: of zodra de klepopeningen (pi_heating_demand) van de kranen die om warmte vragen samen dit halen. 0 schakelt deze regel uit.",
           "maximum_wait": "Alleen bij Samen: een kraan die in zijn eentje om warmte vraagt, krijgt na deze tijd toch warmte.",
           "load_balancing": "Laat de kranen van deze zone hun last verdelen: elke interval wordt het gemiddelde van hun lastschattingen als load_room_mean naar elke kraan geschreven, zoals een Danfoss-gateway doet. Handig voor ruimtes met meer dan één kraan. Uitzetten zet ze weer op onbepaald.",
-          "minimum_opening": "Een kraan vraagt pas om warmte als zijn klep (pi_heating_demand) minstens zo ver open staat. Een bijna dichte klep laat nauwelijks water door, de ketel daarvoor laten branden laat hem alleen doorschieten. Eenmaal vragend blijft hij vragen tot 5% hieronder. 0 schakelt dit uit."
+          "minimum_opening": "Een kraan vraagt pas om warmte als zijn klep (pi_heating_demand) minstens zo ver open staat. Een bijna dichte klep laat nauwelijks water door, de ketel daarvoor laten branden laat hem alleen doorschieten. Eenmaal vragend blijft hij vragen tot 5% hieronder. 0 schakelt dit uit.",
+          "minimum_difference": "Een kraan begint pas om warmte te vragen als zijn ruimte minstens zoveel onder het doel zit. Een ruimte een tiende graad onder het doel heeft het in de praktijk bereikt. Eenmaal vragend blijft hij vragen tot de kraan tevreden is, zodat de ruimte het doel wel haalt. 0 schakelt dit uit."
         }
       },
       "zone_areas": {

@@ -94,6 +94,7 @@ class Zone:
         self.maximum_wait: float = float(settings[CONF_ZONE_MAXIMUM_WAIT]) * 60
         self.load_balancing: bool = bool(settings[CONF_ZONE_LOAD_BALANCING])
         self.minimum_opening: float = float(settings[CONF_ZONE_MINIMUM_OPENING])
+        self.minimum_difference: float = float(settings[CONF_ZONE_MINIMUM_DIFFERENCE])
         self.load_room_mean: int | None = None
 
         self.trvs: list[Trv] = []
@@ -110,7 +111,7 @@ class Zone:
         """Determine whether this zone is calling for heat."""
         available = [areas[trv.climate] for trv in self.trvs if areas[trv.climate].available]
         wanting = [trv for trv in self.trvs if areas[trv.climate] in available and (error := areas[trv.climate].error) is not None and error.value > 0]
-        heating = [trv for trv in wanting if self._asks_for_heat(hass, trv)]
+        heating = [trv for trv in wanting if self._asks_for_heat(hass, trv, areas[trv.climate])]
         self._asking = {trv.climate for trv in heating}
 
         # TRVs that still want a little heat, but whose valve is too far closed to fire the boiler for
@@ -144,25 +145,43 @@ class Zone:
             _LOGGER.info("Zone %s waited %.0f minutes for more TRVs, calling for heat", self.area_id, self.maximum_wait / 60)
             self.calling = True
 
-    def _asks_for_heat(self, hass: HomeAssistant | None, trv: Trv) -> bool:
-        """Return True when the valve of a heating TRV is open far enough to take heat from the boiler.
+    def _asks_for_heat(self, hass: HomeAssistant | None, trv: Trv, area: "Area") -> bool:
+        """Return True when a heating TRV really needs the boiler.
 
-        A nearly closed valve hardly lets any water through: the TRV regulates its last tenths of a degree with the heat
-        that is already there, firing the boiler for it only makes it overshoot. Without a valve opening it always counts.
+        It starts asking when its valve is open far enough to take heat, and its room is far enough below the target. A
+        nearly closed valve hardly lets any water through, and a room a tenth of a degree below its target has reached it
+        in practice: the TRV regulates that with the heat that is already there, firing the boiler only makes it overshoot.
+
+        Once asking, it keeps asking until the TRV itself is satisfied, or its valve closes, so the room does reach its target.
         """
+        asking = trv.climate in self._asking
+
+        if not asking and not self._far_enough_below_target(area):
+            return False
+
         # TRVs that don't report how far their valve is open always count
         if trv.pi_heating_demand is None:
             return True
 
         # A TRV that does, but hasn't yet (e.g. right after a restart), doesn't start asking before it does
         if (valve := valve_opening(hass, trv)) is None:
-            return trv.climate in self._asking
+            return asking
 
         # Once it counts, keep counting a little below the minimum, so a valve around it doesn't switch the boiler on and off
-        if trv.climate in self._asking:
+        if asking:
             return valve >= self.minimum_opening - ZONE_MINIMUM_OPENING_HYSTERESIS
 
         return valve >= self.minimum_opening
+
+    def _far_enough_below_target(self, area: "Area") -> bool:
+        """Return True when the room of the TRV is at least the minimum difference below its target."""
+        if self.minimum_difference <= 0:
+            return True
+
+        if (target := area.target_temperature) is None or (current := area.current_temperature) is None:
+            return True
+
+        return round(target - current, 2) >= self.minimum_difference
 
     def summary(self, hass: HomeAssistant | None) -> dict[str, Any]:
         """Return the state of this zone, for the attributes of the climate entity."""

@@ -70,7 +70,10 @@ TRVs, and a dropdown to:
   contain a Danfoss Ally are listed. Existing zones keep their settings;
 - **save and close**: nothing is saved before this.
 
-In every zone, a TRV only asks for heat when its valve (`pi_heating_demand`) is at least the
+In every zone, a TRV only starts asking for heat when its room is at least the **minimum temperature
+difference** (0.3 °C by default) below its target: a tenth of a degree below has reached it in
+practice. Once asking, it keeps asking until the TRV itself is satisfied, so the room does reach its
+target. And it only asks when its valve (`pi_heating_demand`) is at least the
 **minimum valve opening** (20% by default) open. A nearly closed valve hardly lets any water through:
 the TRV is regulating its last tenths of a degree with the heat that is already there, and firing the
 boiler for it would only make the boiler overshoot and cut out. Once a TRV asks for heat, it keeps

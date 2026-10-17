@@ -15,7 +15,7 @@ from custom_components.ally_otgw.zones import Trv, discover_trvs
 from tests.helpers import add_trv, move_trv
 from tests.test_area import create_areas, create_state
 
-TOGETHER = {CONF_ZONE_MODE: ZONE_MODE_TOGETHER, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False, CONF_ZONE_MINIMUM_OPENING: 20}
+TOGETHER = {CONF_ZONE_MODE: ZONE_MODE_TOGETHER, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False, CONF_ZONE_MINIMUM_OPENING: 20, CONF_ZONE_MINIMUM_DIFFERENCE: 0.3}
 
 LIVING_ROOM = ["climate.tv_hoek_r", "climate.tv_hoek_l", "climate.eetkamer_r"]
 
@@ -154,6 +154,37 @@ def test_the_minimum_opening_is_configurable() -> None:
     assert study(5, **{CONF_ZONE_MINIMUM_OPENING: 0})[1].calling
     assert not study(35, **{CONF_ZONE_MINIMUM_OPENING: 40})[1].calling
 
+
+
+def test_a_room_just_below_its_target_does_not_ask_for_heat() -> None:
+    # Today's study: 22.4 against 22.5, with its valve at 21%: in practice it reached its target
+    states = {"climate.werkkamer": create_state(22.4, 22.5, HVACAction.HEATING)}
+    areas = create_areas(states, {"werkkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, "trvs": ["climate.werkkamer"]}}, {"climate.werkkamer": 21})
+    zone = areas.zones[0]
+
+    assert not zone.calling
+    assert zone.waiting == ["climate.werkkamer"]
+
+    # Far enough below its target, it asks
+    states["climate.werkkamer"] = create_state(22.1, 22.5, HVACAction.HEATING)
+    areas.update()
+    assert zone.calling
+
+    # And it keeps asking until the TRV is satisfied, also when it gets close to its target
+    states["climate.werkkamer"] = create_state(22.45, 22.5, HVACAction.HEATING)
+    areas.update()
+    assert zone.calling
+
+    states["climate.werkkamer"] = create_state(22.6, 22.5, HVACAction.IDLE)
+    areas.update()
+    assert not zone.calling
+
+
+def test_the_minimum_difference_is_configurable() -> None:
+    states = {"climate.werkkamer": create_state(22.4, 22.5, HVACAction.HEATING)}
+    zones = {"werkkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_DIFFERENCE: 0, "trvs": ["climate.werkkamer"]}}
+
+    assert create_areas(states, zones, {"climate.werkkamer": 21}).zones[0].calling
 
 def test_a_trv_without_a_valve_opening_still_asks_for_heat() -> None:
     assert study(None, valves=False)[1].calling
@@ -376,8 +407,8 @@ async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, heat
     result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_ZONES: ["woonkamer", "werkkamer"]})
     assert result["step_id"] == "zones"
     assert result["description_placeholders"]["overview"] == (
-        "- **Woonkamer**: Together, from 20% valve opening (at least 2 TRVs or 100% open, at most 30 min waiting)\n  tv_hoek_l, tv_hoek_r\n"
-        "- **Werkkamer**: Independent, from 20% valve opening\n  werkkamer"
+        "- **Woonkamer**: Together, from 20% valve opening, from 0.3 °C below target (at least 2 TRVs or 100% open, at most 30 min waiting)\n  tv_hoek_l, tv_hoek_r\n"
+        "- **Werkkamer**: Independent, from 20% valve opening, from 0.3 °C below target\n  werkkamer"
     )
 
     options = result["data_schema"].schema["zone"].config["options"]
@@ -401,7 +432,7 @@ async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, heat
 
     assert entry.options[CONF_ZONES] == [
         {CONF_ZONE_AREA: "woonkamer", **TOGETHER, CONF_ZONE_MINIMUM_OPEN: 3},
-        {CONF_ZONE_AREA: "werkkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False, CONF_ZONE_MINIMUM_OPENING: 20},
+        {CONF_ZONE_AREA: "werkkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False, CONF_ZONE_MINIMUM_OPENING: 20, CONF_ZONE_MINIMUM_DIFFERENCE: 0.3},
     ]
 
     # Removing a zone keeps the settings of the others
