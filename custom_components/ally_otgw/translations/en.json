@@ -207,9 +207,9 @@
       },
       "zones": {
         "title": "Zones",
-        "description": "Select the Home Assistant areas whose Danfoss Ally TRVs this integration controls. Every area becomes a zone: its TRVs are found automatically, also when you add, move or remove TRVs later. Only areas that contain a Danfoss Ally are listed.",
+        "description": "{overview}\n\nChoose a zone to change its settings, or add and remove zones. Your changes are saved with *Save and close*.",
         "data": {
-          "zones": "Areas"
+          "zone": "What do you want to do?"
         }
       },
       "zone": {
@@ -226,6 +226,13 @@
           "minimum_open": "Together only: the zone calls for heat once this many of its TRVs ask for heat.",
           "minimum_demand": "Together only: or once the valve openings (pi_heating_demand) of the TRVs asking for heat add up to this. 0 disables this rule.",
           "maximum_wait": "Together only: a TRV asking for heat on its own gets heat after this time anyway."
+        }
+      },
+      "zone_areas": {
+        "title": "Add or remove zones",
+        "description": "Select the Home Assistant areas whose Danfoss Ally TRVs this integration controls. Every area becomes a zone: its TRVs are found automatically, also when you add, move or remove TRVs later. Only areas that contain a Danfoss Ally are listed.",
+        "data": {
+          "zones": "Areas"
         }
       }
     }

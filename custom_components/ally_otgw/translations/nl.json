@@ -199,9 +199,9 @@
       },
       "zones": {
         "title": "Zones",
-        "description": "Kies de Home Assistant-ruimtes waarvan deze integratie de Danfoss Ally-thermostaatkranen aanstuurt. Elke ruimte wordt een zone: de kranen worden automatisch gevonden, ook als je later kranen toevoegt, verplaatst of verwijdert. Alleen ruimtes met een Danfoss Ally worden getoond.",
+        "description": "{overview}\n\nKies een zone om de instellingen te wijzigen, of voeg zones toe of verwijder ze. Je wijzigingen worden bewaard met *Opslaan en sluiten*.",
         "data": {
-          "zones": "Ruimtes"
+          "zone": "Wat wil je doen?"
         }
       },
       "zone": {
@@ -218,6 +218,13 @@
           "minimum_open": "Alleen bij Samen: de zone vraagt om warmte zodra zoveel van haar kranen om warmte vragen.",
           "minimum_demand": "Alleen bij Samen: of zodra de klepopeningen (pi_heating_demand) van de kranen die om warmte vragen samen dit halen. 0 schakelt deze regel uit.",
           "maximum_wait": "Alleen bij Samen: een kraan die in zijn eentje om warmte vraagt, krijgt na deze tijd toch warmte."
+        }
+      },
+      "zone_areas": {
+        "title": "Zones toevoegen of verwijderen",
+        "description": "Kies de Home Assistant-ruimtes waarvan deze integratie de Danfoss Ally-kranen aanstuurt. Elke ruimte wordt een zone: de kranen worden automatisch gevonden, ook als je later kranen toevoegt, verplaatst of verwijdert. Alleen ruimtes met een Danfoss Ally worden getoond.",
+        "data": {
+          "zones": "Ruimtes"
         }
       }
     }

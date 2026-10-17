@@ -285,28 +285,51 @@ async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, heat
     assert result["type"] is FlowResultType.MENU
     assert "zones" in result["menu_options"]
 
+    # Without zones, the overview says so and only offers to add them
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "zones"})
     assert result["step_id"] == "zones"
+    assert "No zones yet" in result["description_placeholders"]["overview"]
 
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"zone": "__areas__"})
+    assert result["step_id"] == "zone_areas"
+
+    # Back in the overview, every zone shows its settings and TRVs, and is in the dropdown
     result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_ZONES: ["woonkamer", "werkkamer"]})
+    assert result["step_id"] == "zones"
+    assert result["description_placeholders"]["overview"] == (
+        "- **Woonkamer**: Together (at least 2 TRVs or 100% open, at most 30 min waiting)\n  tv_hoek_l, tv_hoek_r\n"
+        "- **Werkkamer**: Independent\n  werkkamer"
+    )
+
+    options = result["data_schema"].schema["zone"].config["options"]
+    assert [option["label"] for option in options] == ["Woonkamer: Together, 2 TRVs", "Werkkamer: Independent, 1 TRV", "Add or remove zones", "Save and close"]
+
+    # Change one zone, and come back to the overview
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"zone": "woonkamer"})
     assert result["step_id"] == "zone"
     assert result["description_placeholders"] == {"zone": "Woonkamer", "trvs": "climate.tv_hoek_l, climate.tv_hoek_r"}
 
-    # A room with more than one TRV suggests heating together
     defaults = {str(key): key.default() for key in result["data_schema"].schema}
-    assert defaults[CONF_ZONE_MODE] == ZONE_MODE_TOGETHER
-
     result = await hass.config_entries.options.async_configure(result["flow_id"], {**defaults, CONF_ZONE_MINIMUM_OPEN: 3})
-    assert result["step_id"] == "zone"
-    assert result["description_placeholders"] == {"zone": "Werkkamer", "trvs": "climate.werkkamer"}
+    assert result["step_id"] == "zones"
+    assert "at least 3 TRVs" in result["description_placeholders"]["overview"]
 
-    defaults = {str(key): key.default() for key in result["data_schema"].schema}
-    assert defaults[CONF_ZONE_MODE] == ZONE_MODE_INDEPENDENT
+    # Nothing is saved until the user says so
+    assert entry.options.get(CONF_ZONES) is None
 
-    result = await hass.config_entries.options.async_configure(result["flow_id"], defaults)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"zone": "__save__"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
     assert entry.options[CONF_ZONES] == [
         {CONF_ZONE_AREA: "woonkamer", **TOGETHER, CONF_ZONE_MINIMUM_OPEN: 3},
         {CONF_ZONE_AREA: "werkkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30},
     ]
+
+    # Removing a zone keeps the settings of the others
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "zones"})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"zone": "__areas__"})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_ZONES: ["woonkamer"]})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"zone": "__save__"})
+
+    assert entry.options[CONF_ZONES] == [{CONF_ZONE_AREA: "woonkamer", **TOGETHER, CONF_ZONE_MINIMUM_OPEN: 3}]

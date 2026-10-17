@@ -27,6 +27,26 @@ from .zones import discover_trvs
 
 DEFAULT_NAME = "Living Room"
 
+ZONE_CHOICE = "zone"
+ZONE_CHOICE_AREAS = "__areas__"
+ZONE_CHOICE_SAVE = "__save__"
+
+# The labels of the zones overview, which are built from the zones themselves and can't use the translation files
+ZONE_TEXTS = {
+    "en": {
+        "independent": "Independent", "together": "Together",
+        "areas": "Add or remove zones", "save": "Save and close",
+        "rules": " (at least {minimum_open} TRVs or {minimum_demand}% open, at most {maximum_wait} min waiting)",
+        "none": "No zones yet, choose *Add or remove zones*.", "no_trvs": "no Danfoss Ally TRVs found in this area",
+    },
+    "nl": {
+        "independent": "Zelfstandig", "together": "Samen",
+        "areas": "Zones toevoegen of verwijderen", "save": "Opslaan en sluiten",
+        "rules": " (minstens {minimum_open} kranen of {minimum_demand}% open, hooguit {maximum_wait} min wachten)",
+        "none": "Nog geen zones, kies *Zones toevoegen of verwijderen*.", "no_trvs": "geen Danfoss Ally-kranen gevonden in deze ruimte",
+    },
+}
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -498,8 +518,8 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         self._config_entry = config_entry
         self._options = dict(config_entry.options)
 
-        self._zone_areas: list[str] = []
-        self._zone_settings: list[dict[str, Any]] = []
+        self._zones: list[dict[str, Any]] | None = None
+        self._zone_editing: str | None = None
 
     async def async_step_init(self, _user_input: dict[str, Any] | None = None):
         menu_options = ["general", "zones", "system_configuration"]
@@ -513,20 +533,52 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_zones(self, _user_input: dict[str, Any] | None = None):
-        """Select the Home Assistant areas whose Danfoss Ally TRVs we control."""
-        if _user_input is not None:
-            self._zone_areas = list(_user_input.get(CONF_ZONES) or [])
-            self._zone_settings = []
+        """Show all zones, and let the user pick one to change, add or remove zones, or save."""
+        if self._zones is None:
+            self._zones = [dict(zone) for zone in (await self.get_options())[CONF_ZONES]]
 
+        if _user_input is not None:
+            choice = _user_input[ZONE_CHOICE]
+
+            if choice == ZONE_CHOICE_SAVE:
+                return await self.update_options({CONF_ZONES: self._zones})
+
+            if choice == ZONE_CHOICE_AREAS:
+                return await self.async_step_zone_areas()
+
+            self._zone_editing = choice
             return await self.async_step_zone()
 
-        options = await self.get_options()
-        areas = [zone[CONF_ZONE_AREA] for zone in options[CONF_ZONES]]
+        texts = ZONE_TEXTS["nl" if self.hass.config.language.startswith("nl") else "en"]
+        choices = [selector.SelectOptionDict(value=zone[CONF_ZONE_AREA], label=self._zone_label(zone, texts)) for zone in self._zones]
+        choices += [
+            selector.SelectOptionDict(value=ZONE_CHOICE_AREAS, label=texts["areas"]),
+            selector.SelectOptionDict(value=ZONE_CHOICE_SAVE, label=texts["save"]),
+        ]
 
         return self.async_show_form(
             step_id="zones",
+            description_placeholders={"overview": "\n".join(self._zone_overview(zone, texts) for zone in self._zones) or texts["none"]},
             data_schema=vol.Schema({
-                vol.Optional(CONF_ZONES, default=areas): selector.AreaSelector(
+                vol.Required(ZONE_CHOICE, default=ZONE_CHOICE_SAVE): selector.SelectSelector(
+                    selector.SelectSelectorConfig(mode=SelectSelectorMode.DROPDOWN, options=choices)
+                ),
+            })
+        )
+
+    async def async_step_zone_areas(self, _user_input: dict[str, Any] | None = None):
+        """Select the Home Assistant areas whose Danfoss Ally TRVs we control."""
+        if _user_input is not None:
+            zones = {zone[CONF_ZONE_AREA]: zone for zone in self._zones}
+
+            # Keep the settings of the zones we already had, new zones start with sensible defaults
+            self._zones = [zones.get(area_id) or self._new_zone(area_id) for area_id in _user_input.get(CONF_ZONES) or []]
+            return await self.async_step_zones()
+
+        return self.async_show_form(
+            step_id="zone_areas",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_ZONES, default=[zone[CONF_ZONE_AREA] for zone in self._zones]): selector.AreaSelector(
                     selector.AreaSelectorConfig(multiple=True, device=[
                         selector.DeviceFilterSelectorConfig(manufacturer=ALLY_MANUFACTURER, model_id=model_id) for model_id in ALLY_MODEL_IDS
                     ] + [selector.DeviceFilterSelectorConfig(manufacturer=ALLY_MANUFACTURER, model=ALLY_MODEL)])
@@ -535,27 +587,20 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
     async def async_step_zone(self, _user_input: dict[str, Any] | None = None):
-        """Configure the selected zones, one at a time."""
+        """Change the settings of one zone."""
+        zone = next(zone for zone in self._zones if zone[CONF_ZONE_AREA] == self._zone_editing)
+
         if _user_input is not None:
-            self._zone_settings.append({CONF_ZONE_AREA: self._zone_areas[len(self._zone_settings)], **_user_input})
+            zone.update(_user_input)
+            return await self.async_step_zones()
 
-        if len(self._zone_settings) == len(self._zone_areas):
-            return await self.update_options({CONF_ZONES: self._zone_settings})
-
-        options = await self.get_options()
-        area_id = self._zone_areas[len(self._zone_settings)]
-        area = area_registry.async_get(self.hass).async_get_area(area_id)
-        trvs = discover_trvs(self.hass, area_id)
-
-        # Rooms with more than one TRV most likely want to heat together
-        settings = {**ZONE_DEFAULTS, CONF_ZONE_MODE: ZONE_MODE_TOGETHER if len(trvs) > 1 else ZONE_MODE_INDEPENDENT}
-        settings.update(next((zone for zone in options[CONF_ZONES] if zone[CONF_ZONE_AREA] == area_id), {}))
+        trvs = discover_trvs(self.hass, self._zone_editing)
+        settings = {**ZONE_DEFAULTS, **zone}
 
         return self.async_show_form(
             step_id="zone",
-            last_step=len(self._zone_settings) == len(self._zone_areas) - 1,
             description_placeholders={
-                "zone": area.name if area is not None else area_id,
+                "zone": self._area_name(self._zone_editing),
                 "trvs": ", ".join(trv.climate for trv in trvs) or "-",
             },
             data_schema=vol.Schema({
@@ -573,6 +618,37 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
                 ),
             })
         )
+
+    def _new_zone(self, area_id: str) -> dict[str, Any]:
+        """Return the settings of a new zone, rooms with more than one TRV most likely want to heat together."""
+        mode = ZONE_MODE_TOGETHER if len(discover_trvs(self.hass, area_id)) > 1 else ZONE_MODE_INDEPENDENT
+        return {CONF_ZONE_AREA: area_id, **ZONE_DEFAULTS, CONF_ZONE_MODE: mode}
+
+    def _area_name(self, area_id: str) -> str:
+        area = area_registry.async_get(self.hass).async_get_area(area_id)
+        return area.name if area is not None else area_id
+
+    def _zone_label(self, zone: dict[str, Any], texts: dict[str, str]) -> str:
+        """Return the label of a zone in the dropdown, e.g. "Woonkamer: Together, 5 TRVs"."""
+        settings = {**ZONE_DEFAULTS, **zone}
+        trvs = len(discover_trvs(self.hass, zone[CONF_ZONE_AREA]))
+
+        return f"{self._area_name(zone[CONF_ZONE_AREA])}: {texts[settings[CONF_ZONE_MODE]]}, {trvs} TRV{'s' if trvs != 1 else ''}"
+
+    def _zone_overview(self, zone: dict[str, Any], texts: dict[str, str]) -> str:
+        """Return the overview of a zone: its settings and its TRVs."""
+        settings = {**ZONE_DEFAULTS, **zone}
+        trvs = [trv.climate.removeprefix("climate.") for trv in discover_trvs(self.hass, zone[CONF_ZONE_AREA])]
+
+        line = f"- **{self._area_name(zone[CONF_ZONE_AREA])}**: {texts[settings[CONF_ZONE_MODE]]}"
+        if settings[CONF_ZONE_MODE] == ZONE_MODE_TOGETHER:
+            line += texts["rules"].format(
+                minimum_open=int(settings[CONF_ZONE_MINIMUM_OPEN]),
+                minimum_demand=int(settings[CONF_ZONE_MINIMUM_DEMAND]),
+                maximum_wait=int(settings[CONF_ZONE_MAXIMUM_WAIT]),
+            )
+
+        return line + f"\n  {', '.join(trvs) or texts['no_trvs']}"
 
     async def async_step_general(self, _user_input: dict[str, Any] | None = None):
         if _user_input is not None:
