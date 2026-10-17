@@ -130,6 +130,30 @@
         "data": {
           "manufacturer": "Manufacturer"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure",
+        "description": "Change one part of the setup. Everything else, including the zones and the options, stays as it is.",
+        "menu_options": {
+          "reconfigure_connection": "Gateway connection",
+          "reconfigure_sensors": "Outside temperature",
+          "calibrate_system": "Overshoot protection value (calibrate or enter)"
+        }
+      },
+      "reconfigure_connection": {
+        "title": "Gateway connection",
+        "description": "Currently: {device}\n\nFor a network gateway like the Nodo OTGW, use socket://<address>:<port>, e.g. socket://192.168.1.50:25238. A new address is tested before it is saved; the integration reconnects right after saving.",
+        "data": {
+          "device": "Gateway",
+          "mqtt_topic": "MQTT topic"
+        }
+      },
+      "reconfigure_sensors": {
+        "title": "Outside temperature",
+        "description": "Select the outside temperature, which sets the base flow temperature of the boiler. A local outdoor sensor is best.",
+        "data": {
+          "outside_sensor_entity_id": "Outside temperature"
+        }
       }
     }
   },

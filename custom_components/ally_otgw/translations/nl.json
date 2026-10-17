@@ -7,7 +7,8 @@
     "error": {
       "connection": "Kan geen verbinding maken met de gateway.",
       "mqtt_component": "Het MQTT-component is niet beschikbaar.",
-      "unable_to_calibrate": "Het kalibratieproces is op een probleem gestuit en kon niet succesvol worden voltooid. Zorg ervoor dat uw verwarmingssysteem correct functioneert en dat alle vereiste sensoren zijn aangesloten en correct werken.\n\nAls u problemen blijft ondervinden met de kalibratie, overweeg dan om contact met ons op te nemen voor verdere hulp. Onze excuses voor het ongemak."
+      "unable_to_calibrate": "Het kalibratieproces is op een probleem gestuit en kon niet succesvol worden voltooid. Zorg ervoor dat uw verwarmingssysteem correct functioneert en dat alle vereiste sensoren zijn aangesloten en correct werken.\n\nAls u problemen blijft ondervinden met de kalibratie, overweeg dan om contact met ons op te nemen voor verdere hulp. Onze excuses voor het ongemak.",
+      "invalid_device": "Dit is geen geldig adres. Gebruik bijvoorbeeld socket://192.168.1.50:25238."
     },
     "progress": {
       "calibration": "Kalibreren en de waarde van de overshootbeveiliging vinden...\n\nEven geduld a.u.b. terwijl wij uw verwarmingssysteem optimaliseren. Dit proces kan ongeveer 20 minuten duren."
@@ -123,6 +124,30 @@
           "switch": "PID-Thermostaat (PWM Aan/Uit-modus)"
         },
         "title": "Danfoss Ally OTGW"
+      },
+      "reconfigure": {
+        "title": "Opnieuw configureren",
+        "description": "Wijzig één onderdeel van de installatie. Al het andere, inclusief de zones en de opties, blijft zoals het is.",
+        "menu_options": {
+          "reconfigure_connection": "Verbinding met de gateway",
+          "reconfigure_sensors": "Buitentemperatuur",
+          "calibrate_system": "Overshoot-beveiligingswaarde (kalibreren of invoeren)"
+        }
+      },
+      "reconfigure_connection": {
+        "title": "Verbinding met de gateway",
+        "description": "Nu: {device}\n\nVoor een netwerkgateway zoals de Nodo OTGW gebruik je socket://<adres>:<poort>, bijvoorbeeld socket://192.168.1.50:25238. Een nieuw adres wordt getest voordat het bewaard wordt; de integratie maakt direct na het opslaan opnieuw verbinding.",
+        "data": {
+          "device": "Gateway",
+          "mqtt_topic": "MQTT-topic"
+        }
+      },
+      "reconfigure_sensors": {
+        "title": "Buitentemperatuur",
+        "description": "Kies de buitentemperatuur, die de basis-aanvoertemperatuur van de ketel bepaalt. Een lokale buitensensor is het best.",
+        "data": {
+          "outside_sensor_entity_id": "Buitentemperatuur"
+        }
       }
     }
   },

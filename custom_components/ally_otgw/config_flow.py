@@ -6,10 +6,10 @@ from typing import Optional, Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import sensor, switch, valve, weather, climate, input_boolean
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON, STATE_ON
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
-from homeassistant.helpers import area_registry, selector, entity_registry
+from homeassistant.helpers import area_registry, selector
 from homeassistant.helpers.selector import SelectSelectorMode
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.helpers.service_info.mqtt import MqttServiceInfo
@@ -56,7 +56,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     MINOR_VERSION = 0
 
     calibration = None
-    previous_heating_state = None
+    paused_entry = False
     overshoot_protection_value = None
 
     def __init__(self):
@@ -74,6 +74,15 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def async_remove(self) -> None:
         if self.calibration is not None:
             self.calibration.cancel()
+
+        # The flow was closed halfway a calibration, so make sure we control the boiler again
+        self._async_resume_entry()
+
+    @callback
+    def _async_resume_entry(self) -> None:
+        if self.paused_entry and self.config_entry is not None:
+            self.paused_entry = False
+            self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
 
     async def async_step_user(self, _user_input: dict[str, Any] | None = None):
         """Handle user flow."""
@@ -204,18 +213,10 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self.errors["base"] = "invalid_device"
                 return await self.async_step_serial()
 
-            gateway = OpenThermGateway()
-
-            try:
-                connected = await asyncio.wait_for(gateway.connection.connect(port=self.data[CONF_DEVICE]), timeout=5)
-            except asyncio.TimeoutError:
-                connected = False
-
-            if not connected:
+            if not await self._async_test_serial(self.data[CONF_DEVICE]):
                 self.errors["base"] = "connection"
                 return await self.async_step_serial()
 
-            await gateway.disconnect()
             return await self.async_step_sensors()
 
         return self.async_show_form(
@@ -278,10 +279,78 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_reconfigure(self, _user_input: dict[str, Any] | None = None):
+        """Change the connection, the outside temperature or the overshoot protection, keeping everything else."""
         self.config_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         self.data = self.config_entry.data.copy()
 
-        return await self.async_step_sensors()
+        menu_options = ["reconfigure_sensors", "calibrate_system"]
+        if self.data[CONF_MODE] in (MODE_SERIAL, MODE_MQTT_OPENTHERM, MODE_MQTT_EMS):
+            menu_options.insert(0, "reconfigure_connection")
+
+        return self.async_show_menu(step_id="reconfigure", menu_options=menu_options)
+
+    async def async_step_reconfigure_connection(self, _user_input: dict[str, Any] | None = None):
+        """Change how we reach the gateway, e.g. its socket address."""
+        self.errors = {}
+
+        if _user_input is not None:
+            device = _user_input[CONF_DEVICE].strip()
+
+            if self.data[CONF_MODE] == MODE_SERIAL and not valid_serial_device(device):
+                self.errors["base"] = "invalid_device"
+
+            # We are connected to the current address ourselves, and most gateways accept only one connection
+            elif self.data[CONF_MODE] == MODE_SERIAL and device != self.config_entry.data[CONF_DEVICE] and not await self._async_test_serial(device):
+                self.errors["base"] = "connection"
+
+            else:
+                self.data.update({**_user_input, CONF_DEVICE: device})
+                return self.async_update_reload_and_abort(
+                    self.config_entry,
+                    unique_id=device,
+                    data=self.data,
+                    reason="reconfigure_successful",
+                )
+
+        schema = {vol.Required(CONF_DEVICE, default=(_user_input or self.data).get(CONF_DEVICE)): str}
+        if self.data[CONF_MODE] in (MODE_MQTT_OPENTHERM, MODE_MQTT_EMS):
+            schema[vol.Required(CONF_MQTT_TOPIC, default=self.data.get(CONF_MQTT_TOPIC, ""))] = str
+
+        return self.async_show_form(
+            step_id="reconfigure_connection",
+            errors=self.errors,
+            description_placeholders={"device": self.config_entry.data[CONF_DEVICE]},
+            data_schema=vol.Schema(schema),
+        )
+
+    async def async_step_reconfigure_sensors(self, _user_input: dict[str, Any] | None = None):
+        """Change the outside temperature."""
+        if _user_input is not None:
+            self.data.update(_user_input)
+            return await self.async_step_finish()
+
+        return self.async_show_form(
+            step_id="reconfigure_sensors",
+            data_schema=self.add_suggested_values_to_schema(vol.Schema({
+                vol.Required(CONF_OUTSIDE_SENSOR_ENTITY_ID): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain=[sensor.DOMAIN, weather.DOMAIN], multiple=True)
+                ),
+            }), self.data),
+        )
+
+    async def _async_test_serial(self, device: str) -> bool:
+        """Return True when the gateway at the given address accepts a connection."""
+        gateway = OpenThermGateway()
+
+        try:
+            connected = await asyncio.wait_for(gateway.connection.connect(port=device), timeout=5)
+        except asyncio.TimeoutError:
+            connected = False
+
+        if connected:
+            await gateway.disconnect()
+
+        return bool(connected)
 
     async def async_step_sensors(self, _user_input: dict[str, Any] | None = None):
         if self.config_entry is None:
@@ -334,11 +403,6 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_calibrate(self, _user_input: dict[str, Any] | None = None):
-        # Let's see if we have already been configured before
-        device_name = self.data[CONF_NAME]
-        entities = entity_registry.async_get(self.hass)
-        heating_id = entities.async_get_entity_id(switch.DOMAIN, DOMAIN, device_name.lower())
-
         async def start_calibration():
             try:
                 coordinator = await self.async_create_coordinator()
@@ -359,10 +423,10 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 start_calibration()
             )
 
-            # Make sure we don't control the boiler ourselves while calibrating
-            if heating_id is not None and (state := self.hass.states.get(heating_id)) is not None:
-                self.previous_heating_state = state.state
-                await self.hass.services.async_call(switch.DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: heating_id}, blocking=True)
+            # When reconfiguring, stop the integration while calibrating: the gateway accepts only one connection
+            if self.config_entry is not None and self.config_entry.state is ConfigEntryState.LOADED:
+                await self.hass.config_entries.async_unload(self.config_entry.entry_id)
+                self.paused_entry = True
 
             # Make sure all climate valves are open
             for entity_id in [trv.climate for trv in discover_trvs(self.hass)]:
@@ -376,6 +440,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         if self.overshoot_protection_value is None:
+            self._async_resume_entry()
             return self.async_abort(reason="unable_to_calibrate")
 
         self._enable_overshoot_protection(
@@ -384,10 +449,6 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         self.calibration = None
         self.overshoot_protection_value = None
-
-        # Make sure to restore the heating after we are done
-        if heating_id is not None and self.previous_heating_state == STATE_ON:
-            await self.hass.services.async_call(switch.DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: heating_id}, blocking=True)
 
         return self.async_show_progress_done(next_step_id="calibrated")
 
@@ -471,6 +532,8 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_finish(self, _user_input: dict[str, Any] | None = None):
         if self.config_entry is not None:
+            # Saving reloads the entry, which resumes it as well
+            self.paused_entry = False
             return self.async_update_reload_and_abort(
                 data=self.data,
                 entry=self.config_entry,

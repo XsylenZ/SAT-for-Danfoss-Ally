@@ -41,6 +41,20 @@ Entities that help to see what is going on:
 
 TRVs that are not in any zone, and zones without any TRV, are logged as warnings.
 
+## Changing the setup
+
+**Reconfigure** (⋮ on the integration) changes one part of the setup, keeping the zones and
+options:
+
+- **Gateway connection**: e.g. a new socket address of a Nodo OTGW. A new address is tested
+  before it is saved.
+- **Outside temperature**.
+- **Overshoot protection value**: calibrate again, or enter it. While calibrating, the integration
+  lets go of the gateway, which accepts only one connection, and takes over again afterwards.
+
+**Download diagnostics** (⋮ on the integration) gives a file with all settings, the zones, every
+TRV and the current state of the boiler control. It contains no passwords or tokens.
+
 ## Zones
 
 Rooms are set up as **zones**, based on your Home Assistant areas. After adding the integration,
