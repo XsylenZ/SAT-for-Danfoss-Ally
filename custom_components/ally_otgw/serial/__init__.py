@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional, Any, Mapping
+from typing import Optional, Any, Mapping, Callable
 
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry
+from homeassistant.helpers.entity import Entity
 from homeassistant.exceptions import ConfigEntryNotReady
 from pyotgw import vars as gw_vars, OpenThermGateway
 from pyotgw.vars import *
 from serial import SerialException
 
+from ..const import DOMAIN
 from ..coordinator import DeviceState, SatDataUpdateCoordinator
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
@@ -23,6 +27,50 @@ TRANSLATE_SOURCE = {
     gw_vars.BOILER: "Boiler",
     gw_vars.THERMOSTAT: "Thermostat",
 }
+
+
+@callback
+def async_add_gateway_entities(
+        coordinator: SatSerialCoordinator,
+        config_entry: ConfigEntry,
+        platform: str,
+        infos: dict[str, Any],
+        unique_id: Callable[[str, str], str],
+        create: Callable[[Any, str, str], Entity],
+        async_add_entities: Callable[[list[Entity]], None],
+) -> None:
+    """Add an entity for every value the gateway reports.
+
+    Right after (re)connecting, the gateway hasn't reported every value yet. So we always add the entities we had before,
+    and add the others as soon as the gateway reports their value, instead of only looking once at setup.
+    """
+    registry = entity_registry.async_get(coordinator.hass)
+    has_thermostat = coordinator.data[OTGW].get(OTGW_THRM_DETECT) != "D"
+    added: set[tuple[str, str]] = set()
+
+    @callback
+    def add_entities() -> None:
+        entities = []
+
+        for key, info in infos.items():
+            for source in info.status_sources:
+                if source == THERMOSTAT and has_thermostat is False:
+                    continue
+
+                if (source, key) in added:
+                    continue
+
+                if coordinator.data[source].get(key) is None and registry.async_get_entity_id(platform, DOMAIN, unique_id(source, key)) is None:
+                    continue
+
+                added.add((source, key))
+                entities.append(create(info, key, source))
+
+        if entities:
+            async_add_entities(entities)
+
+    add_entities()
+    config_entry.async_on_unload(coordinator.async_add_listener(add_entities))
 
 
 class SatSerialCoordinator(SatDataUpdateCoordinator):

@@ -280,6 +280,11 @@ class Areas:
 
         return area.target_temperature
 
+    def highest_target_temperature(self) -> float | None:
+        """Return the highest target temperature of the available TRVs."""
+        targets = [area.target_temperature for area in self._areas.values() if area.available and area.target_temperature is not None]
+        return max(targets) if targets else None
+
     def summary(self) -> dict[str, Any]:
         """Return the state of every zone."""
         return {zone.area_id: zone.summary(self._hass) for zone in self._zones}

@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from pyotgw.vars import *
 
-from . import TRANSLATE_SOURCE, SatSerialCoordinator
+from . import TRANSLATE_SOURCE, SatSerialCoordinator, async_add_gateway_entities
 from ..const import *
 from ..entity import SatEntity
 
@@ -86,23 +86,13 @@ SENSOR_INFO: dict[str, SatSensorInfo] = {
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
     """Setup sensor platform."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
-    has_thermostat = coordinator.data[OTGW].get(OTGW_THRM_DETECT) != "D"
 
-    # Create a list of entities to be added
-    entities = []
-
-    # Iterate through sensor information
-    for key, info in SENSOR_INFO.items():
-        # Check if the sensor should be added based on its availability and thermostat presence
-        for source in info.status_sources:
-            if source == THERMOSTAT and has_thermostat is False:
-                continue
-
-            if coordinator.data[source].get(key) is not None:
-                entities.append(SatSensor(coordinator, config_entry, info, key, source))
-
-    # Add all devices
-    async_add_entities(entities)
+    async_add_gateway_entities(
+        coordinator, config_entry, sensor.DOMAIN, SENSOR_INFO,
+        lambda source, key: f"{config_entry.data.get(CONF_NAME).lower()}-{source}-{key}",
+        lambda info, key, source: SatSensor(coordinator, config_entry, info, key, source),
+        async_add_entities,
+    )
 
 
 class SatSensor(SatEntity, sensor.SensorEntity):

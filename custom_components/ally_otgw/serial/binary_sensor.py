@@ -4,13 +4,13 @@ from __future__ import annotations
 import logging
 import typing
 
-from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass, ENTITY_ID_FORMAT
+from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass, ENTITY_ID_FORMAT, DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import async_generate_entity_id
 from pyotgw.vars import *
 
-from . import TRANSLATE_SOURCE, SatSerialCoordinator
+from . import TRANSLATE_SOURCE, SatSerialCoordinator, async_add_gateway_entities
 from ..const import *
 from ..entity import SatEntity
 
@@ -67,23 +67,13 @@ BINARY_SENSOR_INFO: dict[str, SatBinarySensorInfo] = {
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
     """Setup sensor platform."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
-    has_thermostat = coordinator.data[OTGW].get(OTGW_THRM_DETECT) != "D"
 
-    # Create a list of entities to be added
-    entities = []
-
-    # Iterate through sensor information
-    for key, info in BINARY_SENSOR_INFO.items():
-        # Check if the sensor should be added based on its availability and thermostat presence
-        for source in info.status_sources:
-            if source == THERMOSTAT and has_thermostat is False:
-                continue
-
-            if coordinator.data[source].get(key) is not None:
-                entities.append(SatBinarySensor(coordinator, config_entry, info, key, source))
-
-    # Add all devices
-    async_add_entities(entities)
+    async_add_gateway_entities(
+        coordinator, config_entry, BINARY_SENSOR_DOMAIN, BINARY_SENSOR_INFO,
+        lambda source, key: f"{config_entry.data.get(CONF_NAME)}-{source}-{key}",
+        lambda info, key, source: SatBinarySensor(coordinator, config_entry, info, key, source),
+        async_add_entities,
+    )
 
 
 class SatBinarySensor(SatEntity, BinarySensorEntity):

@@ -316,7 +316,11 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         if self._frost_guard_active:
             return FROST_GUARD_TARGET_TEMPERATURE
 
-        return self.areas.target_temperature(self.max_error.entity_id)
+        if (target_temperature := self.areas.target_temperature(self.max_error.entity_id)) is not None:
+            return target_temperature
+
+        # Nobody is calling for heat, keep the heating curve ready for the warmest room
+        return self.areas.highest_target_temperature()
 
     @property
     def current_outside_temperature(self):

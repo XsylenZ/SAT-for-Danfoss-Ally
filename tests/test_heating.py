@@ -140,6 +140,8 @@ async def test_no_heat_without_room_demand(hass: HomeAssistant, entry: MockConfi
     # The room is idle, so the heating curve may not fire the boiler
     await set_room("idle")
     assert not heating.heat_demand
+    assert heating.target_temperature == 20.0
+    assert heating.heating_curve.value is not None
     assert not heating.pulse_width_modulation_enabled
     assert not heating.extra_state_attributes["pulse_width_modulation_active"]
     assert heating.pwm.status == PWMStatus.IDLE

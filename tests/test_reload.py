@@ -58,3 +58,38 @@ async def test_gateway_that_does_not_accept_us_is_retried_later(hass: HomeAssist
 
     # The attempt is stopped, instead of trying forever in the background
     coordinator._api.disconnect.assert_awaited_once()
+
+
+async def test_gateway_entities_are_kept_and_added_when_their_value_arrives(hass: HomeAssistant) -> None:
+    from types import SimpleNamespace
+    from homeassistant.helpers import entity_registry
+    from pyotgw.vars import BOILER, THERMOSTAT, OTGW, DATA_MASTER_CH_ENABLED, DATA_SLAVE_FLAME_ON, DATA_SLAVE_CH_ACTIVE, OTGW_THRM_DETECT
+    from custom_components.ally_otgw.serial import async_add_gateway_entities
+
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_NAME: "OTGW"})
+    entry.add_to_hass(hass)
+
+    # We had this entity before the reload, but the gateway hasn't reported its value again yet
+    entity_registry.async_get(hass).async_get_or_create("binary_sensor", DOMAIN, f"OTGW-{BOILER}-{DATA_MASTER_CH_ENABLED}", config_entry=entry)
+
+    listeners = []
+    data = {BOILER: {DATA_SLAVE_FLAME_ON: False}, THERMOSTAT: {}, OTGW: {OTGW_THRM_DETECT: "D"}}
+    coordinator = SimpleNamespace(hass=hass, data=data, async_add_listener=lambda listener: listeners.append(listener) or (lambda: None))
+    infos = {key: SimpleNamespace(status_sources=[BOILER, THERMOSTAT]) for key in (DATA_MASTER_CH_ENABLED, DATA_SLAVE_FLAME_ON, DATA_SLAVE_CH_ACTIVE)}
+
+    added = []
+    async_add_gateway_entities(
+        coordinator, entry, "binary_sensor", infos,
+        lambda source, key: f"OTGW-{source}-{key}",
+        lambda info, key, source: (source, key),
+        added.extend,
+    )
+
+    # The known entity comes back, the one with a value is added, nothing for the thermostat without a thermostat
+    assert sorted(added) == sorted([(BOILER, DATA_MASTER_CH_ENABLED), (BOILER, DATA_SLAVE_FLAME_ON)])
+
+    # A value that arrives later gets its entity then, and only once
+    data[BOILER][DATA_SLAVE_CH_ACTIVE] = True
+    listeners[0]()
+    listeners[0]()
+    assert added.count((BOILER, DATA_SLAVE_CH_ACTIVE)) == 1

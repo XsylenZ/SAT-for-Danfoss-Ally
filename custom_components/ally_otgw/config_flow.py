@@ -522,10 +522,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         self._zone_editing: str | None = None
 
     async def async_step_init(self, _user_input: dict[str, Any] | None = None):
-        menu_options = ["general", "zones", "system_configuration"]
-
-        if self.show_advanced_options:
-            menu_options.append("advanced")
+        menu_options = ["general", "zones", "system_configuration", "advanced"]
 
         return self.async_show_menu(
             step_id="init",
