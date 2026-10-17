@@ -12,6 +12,7 @@ from custom_components.ally_otgw.climate import SatClimate
 from custom_components.ally_otgw.const import *
 from custom_components.ally_otgw.coordinator import DeviceState
 from custom_components.ally_otgw.fake import SatFakeCoordinator
+from tests.helpers import add_trv
 
 
 @pytest.mark.parametrize(*[
@@ -163,10 +164,10 @@ async def test_scenario_3(hass: HomeAssistant, entry: MockConfigEntry, climate: 
                 CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
                 CONF_MINIMUM_SETPOINT: 57,
                 CONF_MAXIMUM_SETPOINT: 75,
-                CONF_ROOMS: ["climate.radiator_1"],
             },
             {
                 CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_ZONES: [{CONF_ZONE_AREA: "woonkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT}],
                 CONF_FORCE_PULSE_WIDTH_MODULATION: True,
             },
             {
@@ -188,6 +189,8 @@ async def test_scenario_3(hass: HomeAssistant, entry: MockConfigEntry, climate: 
     )],
 ])
 async def test_no_heat_without_room_demand(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    await add_trv(hass, "Woonkamer", "radiator_1")
+
     async def set_room(hvac_action: str) -> None:
         hass.states.async_set("climate.radiator_1", HVACMode.HEAT, {"current_temperature": 19.0, "temperature": 20.0, "hvac_action": hvac_action, "hvac_modes": [HVACMode.HEAT]})
         await climate.async_control_heating_loop()
@@ -247,10 +250,10 @@ async def test_no_heat_without_room_demand(hass: HomeAssistant, entry: MockConfi
                 CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
                 CONF_MINIMUM_SETPOINT: 57,
                 CONF_MAXIMUM_SETPOINT: 75,
-                CONF_ROOMS: ["climate.radiator_1"],
             },
             {
                 CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_ZONES: [{CONF_ZONE_AREA: "woonkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT}],
                 CONF_FORCE_PULSE_WIDTH_MODULATION: True,
             },
             {
@@ -272,6 +275,8 @@ async def test_no_heat_without_room_demand(hass: HomeAssistant, entry: MockConfi
     )],
 ])
 async def test_error_source_change_does_not_kick_derivative(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    await add_trv(hass, "Woonkamer", "radiator_1")
+
     def set_room(current: float, hvac_action: str) -> None:
         hass.states.async_set("climate.radiator_1", HVACMode.HEAT, {"current_temperature": current, "temperature": 20.0, "hvac_action": hvac_action, "hvac_modes": [HVACMode.HEAT]})
 
@@ -305,10 +310,10 @@ async def test_error_source_change_does_not_kick_derivative(hass: HomeAssistant,
                 CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
                 CONF_MINIMUM_SETPOINT: 57,
                 CONF_MAXIMUM_SETPOINT: 75,
-                CONF_ROOMS: ["climate.radiator_1"],
             },
             {
                 CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_ZONES: [{CONF_ZONE_AREA: "woonkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT}],
                 CONF_FORCE_PULSE_WIDTH_MODULATION: True,
             },
             {
@@ -330,6 +335,8 @@ async def test_error_source_change_does_not_kick_derivative(hass: HomeAssistant,
     )],
 ])
 async def test_stale_room_is_ignored_until_it_reports_again(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    await add_trv(hass, "Woonkamer", "radiator_1")
+
     from datetime import timedelta
     from homeassistant.util import dt
 
@@ -383,10 +390,10 @@ async def test_stale_room_is_ignored_until_it_reports_again(hass: HomeAssistant,
                 CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
                 CONF_MINIMUM_SETPOINT: 57,
                 CONF_MAXIMUM_SETPOINT: 75,
-                CONF_ROOMS: ["climate.radiator_1"],
             },
             {
                 CONF_HEATING_CURVE_COEFFICIENT: 1.8,
+                CONF_ZONES: [{CONF_ZONE_AREA: "woonkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT}],
                 CONF_FORCE_PULSE_WIDTH_MODULATION: True,
             },
             {
@@ -408,6 +415,8 @@ async def test_stale_room_is_ignored_until_it_reports_again(hass: HomeAssistant,
     )],
 ])
 async def test_failsafe_without_inside_temperature(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
+    await add_trv(hass, "Woonkamer", "radiator_1")
+
     room = {"current_temperature": 19.0, "temperature": 20.0, "hvac_action": "heating", "hvac_modes": [HVACMode.HEAT]}
     hass.states.async_set("climate.radiator_1", HVACMode.HEAT, room)
 

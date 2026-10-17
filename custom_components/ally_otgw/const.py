@@ -49,7 +49,6 @@ CONF_SIMULATED_WARMING_UP = "simulated_warming_up"
 CONF_MINIMUM_SETPOINT = "minimum_setpoint"
 CONF_MAXIMUM_SETPOINT = "maximum_setpoint"
 CONF_MAXIMUM_RELATIVE_MODULATION = "maximum_relative_modulation"
-CONF_ROOMS = "secondary_climates"
 CONF_MQTT_TOPIC = "mqtt_topic"
 CONF_RADIATORS = "main_climates"
 CONF_WINDOW_SENSORS = "window_sensors"
@@ -81,6 +80,29 @@ CONF_HEATING_MODE = "heating_mode"
 CONF_HEATING_SYSTEM = "heating_system"
 CONF_HEATING_CURVE_COEFFICIENT = "heating_curve_coefficient"
 CONF_OVERSHOOT_HOLD = "overshoot_hold"
+
+# Zones: Home Assistant areas whose Danfoss Ally TRVs are controlled together
+CONF_ZONES = "zones"
+CONF_ZONE_AREA = "area_id"
+CONF_ZONE_MODE = "mode"
+CONF_ZONE_MINIMUM_OPEN = "minimum_open"
+CONF_ZONE_MINIMUM_DEMAND = "minimum_demand"
+CONF_ZONE_MAXIMUM_WAIT = "maximum_wait"
+
+ZONE_MODE_INDEPENDENT = "independent"
+ZONE_MODE_TOGETHER = "together"
+
+ZONE_DEFAULTS = {
+    CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT,
+    CONF_ZONE_MINIMUM_OPEN: 2,
+    CONF_ZONE_MINIMUM_DEMAND: 100,
+    CONF_ZONE_MAXIMUM_WAIT: 30,
+}
+
+# The radiator thermostats this integration works with
+ALLY_MANUFACTURER = "Danfoss"
+ALLY_MODEL = "Ally thermostat"
+ALLY_MODEL_IDS = ("014G2461",)
 
 CONF_PID_CONTROLLER_VERSION = "pid_controller_version"
 
@@ -120,7 +142,6 @@ OPTIONS_DEFAULTS = {
     CONF_MINIMUM_SETPOINT_ADJUSTMENT_FACTOR: 0.2,
 
     CONF_RADIATORS: [],
-    CONF_ROOMS: [],
 
     CONF_SIMULATION: False,
     CONF_WINDOW_SENSORS: [],
@@ -156,6 +177,7 @@ OPTIONS_DEFAULTS = {
 
     CONF_HEATING_CURVE_COEFFICIENT: 2.0,
     CONF_OVERSHOOT_HOLD: 0.5,
+    CONF_ZONES: [],
     CONF_HEATING_MODE: HEATING_MODE_COMFORT,
     CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
 

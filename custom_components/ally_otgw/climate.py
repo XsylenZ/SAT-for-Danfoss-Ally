@@ -28,8 +28,8 @@ from homeassistant.components.climate import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, STATE_UNAVAILABLE, STATE_UNKNOWN, ATTR_ENTITY_ID, STATE_ON, STATE_OFF, EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant, ServiceCall, Event, CoreState, EventStateChangedData, HassJob
-from homeassistant.helpers import entity_registry
+from homeassistant.core import HomeAssistant, ServiceCall, Event, CoreState, EventStateChangedData, HassJob, callback
+from homeassistant.helpers import device_registry, entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval, async_call_later
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -142,6 +142,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self._attr_supported_features |= ClimateEntityFeature.TURN_OFF
 
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
+        self._zones_unsub: Optional[Callable[[], None]] = None
 
         # System Configuration
         self._attr_name = str(config_entry.data.get(CONF_NAME))
@@ -205,6 +206,15 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # Restore the previous state if available, or set default values
         await self._restore_previous_state_or_set_defaults()
 
+        # Discover the TRVs of our zones, before we control anything
+        await self.areas.async_added_to_hass(self.hass)
+        self._async_track_zones()
+
+        # Follow TRVs that are added to, moved between or removed from our zones
+        self.async_on_remove(self._async_untrack_zones)
+        self.async_on_remove(self.hass.bus.async_listen(device_registry.EVENT_DEVICE_REGISTRY_UPDATED, self._async_registry_updated))
+        self.async_on_remove(self.hass.bus.async_listen(entity_registry.EVENT_ENTITY_REGISTRY_UPDATED, self._async_registry_updated))
+
         # Update a heating curve if outside temperature is available
         if self.current_outside_temperature is not None:
             self.areas.heating_curves.update(self.current_outside_temperature)
@@ -219,9 +229,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
 
         # Register services
         await self._register_services()
-
-        # Initialize the area system
-        await self.areas.async_added_to_hass(self.hass)
 
         # Let the coordinator know we are ready
         await self._coordinator.async_added_to_hass()
@@ -270,12 +277,6 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             )
         )
 
-        self.async_on_remove(
-            async_track_state_change_event(
-                self.hass, self.areas.items(), self._async_climate_changed
-            )
-        )
-
         if len(self._window_sensors) > 0:
             entities = entity_registry.async_get(self.hass)
             device_name = self._config_entry.data.get(CONF_NAME)
@@ -287,10 +288,41 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
                 )
             )
 
-        for entity_id in self.areas.items():
+    @callback
+    def _async_track_zones(self) -> None:
+        """Follow the entities of the TRVs that are currently in our zones."""
+        self._async_untrack_zones()
+
+        climates = self.areas.items()
+        unsubscribes = [
+            async_track_state_change_event(self.hass, climates, self._async_climate_changed),
+            async_track_state_change_event(self.hass, [entity_id for entity_id in self.areas.entities() if entity_id not in climates], self._async_zone_entity_changed),
+        ]
+
+        self._zones_unsub = lambda: [unsubscribe() for unsubscribe in unsubscribes]
+
+        for entity_id in climates:
             state = self.hass.states.get(entity_id)
             if state is not None and (sensor_temperature_id := state.attributes.get(SENSOR_TEMPERATURE_ID)):
                 self.async_track_sensor_temperature(sensor_temperature_id)
+
+    @callback
+    def _async_untrack_zones(self) -> None:
+        if self._zones_unsub is not None:
+            self._zones_unsub()
+            self._zones_unsub = None
+
+    @callback
+    def _async_registry_updated(self, _event: Event) -> None:
+        """Discover the TRVs of our zones again, when devices or entities changed."""
+        if self.areas.refresh():
+            self._async_track_zones()
+            self.areas.update()
+            self.schedule_control_heating_loop()
+
+    async def _async_zone_entity_changed(self, _event: Event[EventStateChangedData]) -> None:
+        """Handle changes to the other entities of our TRVs, like how far their valves are open."""
+        self.schedule_control_heating_loop()
 
     async def _restore_previous_state_or_set_defaults(self):
         """Restore the previous state if available or set default values."""
@@ -412,6 +444,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             "relative_modulation_enabled": self.relative_modulation.enabled,
             "relative_modulation_state": self.relative_modulation_state.name,
 
+            "zones": self.areas.summary(),
             "heat_demand": self.heat_demand,
             "heat_allowed": self._heat_allowed,
             "failsafe": self._failsafe_active,
@@ -510,7 +543,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
     @property
     def heat_demand(self) -> bool:
         """Return False when rooms are configured, but none of them is calling for heat."""
-        if self._heating_mode == HEATING_MODE_ECO or len(self.areas.items()) == 0:
+        if self._heating_mode == HEATING_MODE_ECO or not self.areas.configured:
             return True
 
         # None of the rooms can tell us anything, so the main room decides
@@ -790,6 +823,7 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
             self.areas.pids.reset()
 
         # Calculate the maximum error between the current temperature and the target temperature of all climates
+        self.areas.update()
         max_error = self.max_error
 
         # Make sure we use the latest heating curve value
@@ -1006,6 +1040,9 @@ class SatClimate(SatEntity, ClimateEntity, RestoreEntity):
         # No need to do anything if we are not on
         if self.hvac_mode != HVACMode.HEAT:
             return
+
+        # Determine which zones are calling for heat
+        self.areas.update()
 
         # Without the temperatures we need, make sure the boiler doesn't keep heating on an old setpoint
         if self.target_temperature is None or self.current_outside_temperature is None or (self.current_temperature is None and self.areas.demand is None):

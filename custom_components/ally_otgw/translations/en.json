@@ -15,13 +15,11 @@
     },
     "step": {
       "areas": {
+        "title": "Thermostat",
+        "description": "Optionally select a room thermostat that is connected to the OpenTherm Gateway. The rooms and their Danfoss Ally TRVs are set up as zones in the options, after this setup.",
         "data": {
-          "thermostat": "Thermostat",
-          "main_climates": "Radiators",
-          "secondary_climates": "Rooms"
-        },
-        "description": "Settings related to thermostat, multi-room and temperature control. The radiators are in the same room as the inside sensor and the rooms have their own target temperatures separate from the system.",
-        "title": "Areas"
+          "thermostat": "Thermostat"
+        }
       },
       "automatic_gains": {
         "data": {
@@ -214,6 +212,7 @@
         "menu_options": {
           "advanced": "Advanced Options",
           "general": "General",
+          "zones": "Zones",
           "presets": "Presets",
           "system_configuration": "System Configuration"
         }
@@ -249,6 +248,29 @@
         },
         "description": "For fine-tuning and customization.",
         "title": "System Configuration"
+      },
+      "zones": {
+        "title": "Zones",
+        "description": "Select the Home Assistant areas whose Danfoss Ally TRVs this integration controls. Every area becomes a zone: its TRVs are found automatically, also when you add, move or remove TRVs later. Only areas that contain a Danfoss Ally are listed.",
+        "data": {
+          "zones": "Areas"
+        }
+      },
+      "zone": {
+        "title": "Zone: {zone}",
+        "description": "TRVs found in this area: {trvs}\n\nIndependent: the boiler fires as soon as one TRV in this zone asks for heat.\nTogether: the boiler waits until enough TRVs in this zone ask for heat, so it can burn longer. Once the zone calls for heat, it keeps calling until all of its TRVs are satisfied.",
+        "data": {
+          "mode": "Heats",
+          "minimum_open": "Minimum TRVs asking for heat",
+          "minimum_demand": "Or minimum total valve opening",
+          "maximum_wait": "Never wait longer than"
+        },
+        "data_description": {
+          "mode": "How the TRVs in this zone call for heat.",
+          "minimum_open": "Together only: the zone calls for heat once this many of its TRVs ask for heat.",
+          "minimum_demand": "Together only: or once the valve openings (pi_heating_demand) of the TRVs asking for heat add up to this. 0 disables this rule.",
+          "maximum_wait": "Together only: a TRV asking for heat on its own gets heat after this time anyway."
+        }
       }
     }
   },
@@ -265,6 +287,14 @@
           "name": "Enabled",
           "description": "The state you want to force."
         }
+      }
+    }
+  },
+  "selector": {
+    "zone_mode": {
+      "options": {
+        "independent": "Independent",
+        "together": "Together"
       }
     }
   }

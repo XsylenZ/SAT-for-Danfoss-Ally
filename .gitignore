@@ -1,1 +1,9 @@
 .idea
+
+# Private Home Assistant connection settings and local scripts that use them, never commit these
+.env
+.env.*
+app-config.json
+*.local.json
+ha-connection*
+/local/

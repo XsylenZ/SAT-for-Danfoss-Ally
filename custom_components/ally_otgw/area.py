@@ -1,13 +1,13 @@
 import logging
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant, State
 from homeassistant.util import dt
 
-from .const import CONF_ROOMS, CONF_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE
+from .const import CONF_ZONES, CONF_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE
 from .errors import Errors, Error
 from .heating_curve import HeatingCurve
 from .helpers import float_value
@@ -16,6 +16,7 @@ from .util import (
     create_pid_controller,
     create_heating_curve_controller,
 )
+from .zones import Trv, Zone, discover_trvs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -142,44 +143,114 @@ class Area:
 
 
 class Areas:
-    def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any]):
-        """Initialize Areas with multiple Area instances using shared config data and options."""
-        self._entity_ids: list[str] = config_data.get(CONF_ROOMS) or []
-        self._areas: list[Area] = [Area(config_data, config_options, entity_id) for entity_id in self._entity_ids]
+    def __init__(
+            self,
+            config_data: MappingProxyType[str, Any],
+            config_options: MappingProxyType[str, Any],
+            discover: Callable[[HomeAssistant, str], list[Trv]] = discover_trvs,
+    ):
+        """Initialize Areas from the configured zones, their TRVs are discovered once we know Home Assistant."""
+        self._config_data = config_data
+        self._config_options = config_options
+        self._discover = discover
+        self._hass: HomeAssistant | None = None
+
+        self._areas: dict[str, Area] = {}
+        self._zones: list[Zone] = [Zone(settings) for settings in config_options.get(CONF_ZONES) or []]
+
+    @property
+    def configured(self) -> bool:
+        """Return True when there are zones configured."""
+        return len(self._zones) > 0
+
+    @property
+    def zones(self) -> list[Zone]:
+        return self._zones
 
     @property
     def errors(self) -> Errors:
-        """Return a list of all the error values for all areas."""
-        return Errors([area.error for area in self._areas if area.error is not None])
+        """Return the error values of the TRVs in the zones that are calling for heat."""
+        return Errors([
+            error
+            for zone in self._zones if zone.calling
+            for trv in zone.trvs if (error := self._areas[trv.climate].error) is not None
+        ])
 
     @property
     def demand(self) -> bool | None:
-        """Return True when any area is calling for heat, or None when no area can tell us."""
-        if not any(area.available for area in self._areas):
+        """Return True when any zone is calling for heat, or None when no zone can tell us."""
+        if not any(zone.available for zone in self._zones):
             return None
 
-        return any(error.value > 0 for error in self.errors)
+        return any(zone.calling for zone in self._zones)
+
+    def refresh(self) -> bool:
+        """Discover the TRVs of every zone again, returns True when anything changed."""
+        if self._hass is None:
+            return False
+
+        changed = False
+        areas: dict[str, Area] = {}
+
+        for zone in self._zones:
+            trvs = self._discover(self._hass, zone.area_id)
+            if trvs != zone.trvs:
+                _LOGGER.info("Zone %s now has the TRVs: %s", zone.area_id, ", ".join(trv.climate for trv in trvs) or "none")
+                zone.trvs = trvs
+                changed = True
+
+            for trv in trvs:
+                # Keep the controllers of the TRVs we already knew
+                if (area := self._areas.get(trv.climate)) is None:
+                    area = Area(self._config_data, self._config_options, trv.climate)
+                    area._hass = self._hass
+
+                areas[trv.climate] = area
+
+        self._areas = areas
+        return changed
+
+    def update(self) -> None:
+        """Determine which zones are calling for heat."""
+        for zone in self._zones:
+            zone.update(self._areas, self._hass)
+
+    def summary(self) -> dict[str, Any]:
+        """Return the state of every zone."""
+        return {zone.area_id: zone.summary(self._hass) for zone in self._zones}
 
     @property
     def heating_curves(self):
         """Return an interface to update heating curves for all areas."""
-        return Areas._HeatingCurves(self._areas)
+        return Areas._HeatingCurves(list(self._areas.values()))
 
     @property
     def pids(self):
         """Return an interface to reset PID controllers for all areas."""
-        return Areas._PIDs(self._areas)
+        return Areas._PIDs(list(self._areas.values()))
 
     def items(self) -> list[str]:
-        return self._entity_ids
+        """Return the climate entities of all TRVs in all zones."""
+        return list(self._areas)
+
+    def entities(self) -> list[str]:
+        """Return all entities of the TRVs that should trigger a new evaluation when they change."""
+        return [
+            entity_id
+            for zone in self._zones
+            for trv in zone.trvs
+            for entity_id in (trv.climate, trv.pi_heating_demand)
+            if entity_id is not None
+        ]
 
     async def async_added_to_hass(self, hass: HomeAssistant):
-        for area in self._areas:
-            await area.async_added_to_hass(hass)
+        self._hass = hass
+        self.refresh()
+        self.update()
 
     async def async_control_heating_loops(self, _time=None) -> None:
         """Asynchronously control heating loop for all areas."""
-        for area in self._areas:
+        for area in self._areas.values():
             await area.async_control_heating_loop(_time)
 
     class _HeatingCurves:

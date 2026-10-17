@@ -1,4 +1,4 @@
-"""Adds config flow for SAT."""
+"""Adds config flow for Danfoss Ally OTGW."""
 import asyncio
 import logging
 from typing import Optional, Any
@@ -9,7 +9,7 @@ from homeassistant.components import sensor, switch, valve, weather, binary_sens
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
-from homeassistant.helpers import selector, entity_registry
+from homeassistant.helpers import area_registry, selector, entity_registry
 from homeassistant.helpers.selector import SelectSelectorMode, SelectOptionDict
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.helpers.service_info.mqtt import MqttServiceInfo
@@ -23,6 +23,7 @@ from .helpers import calculate_default_maximum_setpoint, snake_case
 from .manufacturer import ManufacturerFactory, MANUFACTURERS
 from .overshoot_protection import OvershootProtection
 from .validators import valid_serial_device
+from .zones import discover_trvs
 
 DEFAULT_NAME = "Living Room"
 
@@ -333,12 +334,6 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_THERMOSTAT): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain=climate.DOMAIN)
                 ),
-                vol.Optional(CONF_RADIATORS): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=climate.DOMAIN, multiple=True)
-                ),
-                vol.Optional(CONF_ROOMS): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=climate.DOMAIN, multiple=True)
-                ),
             }), self.data)
         )
 
@@ -399,7 +394,7 @@ class SatFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 
             # Make sure all climate valves are open
-            for entity_id in self.data.get(CONF_RADIATORS, []) + self.data.get(CONF_ROOMS, []):
+            for entity_id in [trv.climate for trv in discover_trvs(self.hass)]:
                 data = {ATTR_ENTITY_ID: entity_id, climate.ATTR_HVAC_MODE: climate.HVACMode.HEAT}
                 await self.hass.services.async_call(climate.DOMAIN, climate.SERVICE_SET_HVAC_MODE, data, blocking=True)
 
@@ -553,8 +548,11 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         self._config_entry = config_entry
         self._options = dict(config_entry.options)
 
+        self._zone_areas: list[str] = []
+        self._zone_settings: list[dict[str, Any]] = []
+
     async def async_step_init(self, _user_input: dict[str, Any] | None = None):
-        menu_options = ["general", "presets", "system_configuration"]
+        menu_options = ["general", "zones", "presets", "system_configuration"]
 
         if self.show_advanced_options:
             menu_options.append("advanced")
@@ -562,6 +560,68 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options=menu_options
+        )
+
+    async def async_step_zones(self, _user_input: dict[str, Any] | None = None):
+        """Select the Home Assistant areas whose Danfoss Ally TRVs we control."""
+        if _user_input is not None:
+            self._zone_areas = list(_user_input.get(CONF_ZONES) or [])
+            self._zone_settings = []
+
+            return await self.async_step_zone()
+
+        options = await self.get_options()
+        areas = [zone[CONF_ZONE_AREA] for zone in options[CONF_ZONES]]
+
+        return self.async_show_form(
+            step_id="zones",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_ZONES, default=areas): selector.AreaSelector(
+                    selector.AreaSelectorConfig(multiple=True, device=[
+                        selector.DeviceFilterSelectorConfig(manufacturer=ALLY_MANUFACTURER, model_id=model_id) for model_id in ALLY_MODEL_IDS
+                    ] + [selector.DeviceFilterSelectorConfig(manufacturer=ALLY_MANUFACTURER, model=ALLY_MODEL)])
+                ),
+            })
+        )
+
+    async def async_step_zone(self, _user_input: dict[str, Any] | None = None):
+        """Configure the selected zones, one at a time."""
+        if _user_input is not None:
+            self._zone_settings.append({CONF_ZONE_AREA: self._zone_areas[len(self._zone_settings)], **_user_input})
+
+        if len(self._zone_settings) == len(self._zone_areas):
+            return await self.update_options({CONF_ZONES: self._zone_settings})
+
+        options = await self.get_options()
+        area_id = self._zone_areas[len(self._zone_settings)]
+        area = area_registry.async_get(self.hass).async_get_area(area_id)
+        trvs = discover_trvs(self.hass, area_id)
+
+        # Rooms with more than one TRV most likely want to heat together
+        settings = {**ZONE_DEFAULTS, CONF_ZONE_MODE: ZONE_MODE_TOGETHER if len(trvs) > 1 else ZONE_MODE_INDEPENDENT}
+        settings.update(next((zone for zone in options[CONF_ZONES] if zone[CONF_ZONE_AREA] == area_id), {}))
+
+        return self.async_show_form(
+            step_id="zone",
+            last_step=len(self._zone_settings) == len(self._zone_areas) - 1,
+            description_placeholders={
+                "zone": area.name if area is not None else area_id,
+                "trvs": ", ".join(trv.climate for trv in trvs) or "-",
+            },
+            data_schema=vol.Schema({
+                vol.Required(CONF_ZONE_MODE, default=settings[CONF_ZONE_MODE]): selector.SelectSelector(
+                    selector.SelectSelectorConfig(mode=SelectSelectorMode.LIST, translation_key="zone_mode", options=[ZONE_MODE_INDEPENDENT, ZONE_MODE_TOGETHER])
+                ),
+                vol.Required(CONF_ZONE_MINIMUM_OPEN, default=settings[CONF_ZONE_MINIMUM_OPEN]): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=1, max=10, step=1, mode=selector.NumberSelectorMode.BOX)
+                ),
+                vol.Required(CONF_ZONE_MINIMUM_DEMAND, default=settings[CONF_ZONE_MINIMUM_DEMAND]): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=500, step=10, unit_of_measurement="%")
+                ),
+                vol.Required(CONF_ZONE_MAXIMUM_WAIT, default=settings[CONF_ZONE_MAXIMUM_WAIT]): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=240, step=5, unit_of_measurement="min")
+                ),
+            })
         )
 
     async def async_step_general(self, _user_input: dict[str, Any] | None = None):
@@ -590,7 +650,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
                 ])
             )
 
-        if len(self._config_entry.data.get(CONF_ROOMS, [])) > 0:
+        if len(options[CONF_ZONES]) > 0:
             schema[vol.Required(CONF_HEATING_MODE, default=str(options[CONF_HEATING_MODE]))] = selector.SelectSelector(
                 selector.SelectSelectorConfig(mode=SelectSelectorMode.DROPDOWN, options=[
                     selector.SelectOptionDict(value=HEATING_MODE_COMFORT, label="Comfort"),

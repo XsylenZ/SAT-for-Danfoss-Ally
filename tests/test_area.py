@@ -10,6 +10,7 @@ from homeassistant.util import dt
 
 from custom_components.ally_otgw.area import Area, Areas
 from custom_components.ally_otgw.const import *
+from custom_components.ally_otgw.zones import Trv
 from tests.const import DEFAULT_USER_DATA
 
 ENTITY_ID = "climate.radiator_test"
@@ -96,10 +97,20 @@ def test_hold_is_configurable() -> None:
     assert area.error.value == 1.2
 
 
-def create_areas(states: dict[str, State | None]) -> Areas:
-    areas = Areas(MappingProxyType({**DEFAULT_USER_DATA, CONF_ROOMS: list(states)}), MappingProxyType(OPTIONS_DEFAULTS))
-    for area in areas._areas:
-        area._hass = SimpleNamespace(states=SimpleNamespace(get=lambda entity_id: states[entity_id]))
+def create_areas(states: dict[str, State | None], zones: dict[str, dict] | None = None, openings: dict[str, float] | None = None) -> Areas:
+    """Create areas for the given TRV states, by default all in one independent zone."""
+    zones = zones or {"zone": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, "trvs": list(states)}}
+    sensors = {f"sensor.{entity_id.split('.')[1]}_pi_heating_demand": State("sensor.x", str(opening)) for entity_id, opening in (openings or {}).items()}
+
+    def discover(_hass, area_id: str) -> list[Trv]:
+        return [Trv(entity_id, pi_heating_demand=f"sensor.{entity_id.split('.')[1]}_pi_heating_demand") for entity_id in zones[area_id]["trvs"]]
+
+    settings = [{CONF_ZONE_AREA: area_id, **{key: value for key, value in zone.items() if key != "trvs"}} for area_id, zone in zones.items()]
+    areas = Areas(MappingProxyType(DEFAULT_USER_DATA), MappingProxyType({**OPTIONS_DEFAULTS, CONF_ZONES: settings}), discover=discover)
+
+    areas._hass = SimpleNamespace(states=SimpleNamespace(get=lambda entity_id: states.get(entity_id) or sensors.get(entity_id)))
+    areas.refresh()
+    areas.update()
 
     return areas
 

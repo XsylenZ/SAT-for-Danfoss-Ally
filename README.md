@@ -15,6 +15,29 @@ PID control, pulse width modulation, overshoot protection calibration) comes fro
 
 Like SAT, it is licensed under the [GNU General Public License v3.0](LICENSE).
 
+## Zones
+
+Rooms are set up as **zones**, based on your Home Assistant areas. After adding the integration,
+open its options and choose **Zones**:
+
+1. Pick the areas whose TRVs this integration should control. Only areas that contain a Danfoss
+   Ally are listed.
+2. Configure each zone:
+   - **Independent**: the boiler fires as soon as one TRV in the zone asks for heat. Use this for
+     rooms that must heat on their own, like a study or bedrooms.
+   - **Together**: the boiler waits until enough TRVs in the zone ask for heat (a minimum number
+     of TRVs, or a minimum total valve opening from `pi_heating_demand`), so it can burn longer
+     instead of short-cycling on one small radiator. Once the zone calls for heat, it keeps calling
+     until all of its TRVs are satisfied. **Never wait longer than** makes sure a single TRV still
+     gets heat after a while.
+
+The TRVs of a zone are found automatically: every Danfoss Ally (`014G2461`) device in that area.
+Other climate devices in the same area, like air conditioning, are ignored. Adding, moving or
+removing a TRV in Home Assistant is picked up right away, without reconfiguring.
+
+The `zones` attribute of the climate entity shows every zone, its TRVs, which of them are heating,
+their total valve opening and whether the zone is calling for heat.
+
 ## What it changes compared to SAT
 
 - A room only drives the boiler while its TRV reports that it is actually heating, and keeps

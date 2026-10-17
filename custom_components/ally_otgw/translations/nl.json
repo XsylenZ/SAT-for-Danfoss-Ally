@@ -14,12 +14,11 @@
     },
     "step": {
       "areas": {
+        "title": "Thermostaat",
+        "description": "Kies eventueel een kamerthermostaat die op de OpenTherm Gateway is aangesloten. De ruimtes en hun Danfoss Ally-kranen stel je na deze installatie in als zones, in de opties.",
         "data": {
-          "main_climates": "Primair",
-          "secondary_climates": "Kamers"
-        },
-        "description": "Instellingen met betrekking tot klimaten, multi-kamer en temperatuurregeling. Primaire klimaten bevinden zich in dezelfde kamer als de binnensensor en de kamers hebben hun eigen doeltemperaturen los van het systeem.",
-        "title": "Gebieden"
+          "thermostat": "Thermostaat"
+        }
       },
       "automatic_gains": {
         "data": {
@@ -205,6 +204,7 @@
         "menu_options": {
           "advanced": "Geavanceerde Opties",
           "general": "Algemeen",
+          "zones": "Zones",
           "presets": "Voorinstellingen",
           "system_configuration": "Systeemconfiguratie"
         }
@@ -240,6 +240,37 @@
         },
         "description": "Voor fijnafstelling en aanpassing.",
         "title": "Systeemconfiguratie"
+      },
+      "zones": {
+        "title": "Zones",
+        "description": "Kies de Home Assistant-ruimtes waarvan deze integratie de Danfoss Ally-thermostaatkranen aanstuurt. Elke ruimte wordt een zone: de kranen worden automatisch gevonden, ook als je later kranen toevoegt, verplaatst of verwijdert. Alleen ruimtes met een Danfoss Ally worden getoond.",
+        "data": {
+          "zones": "Ruimtes"
+        }
+      },
+      "zone": {
+        "title": "Zone: {zone}",
+        "description": "Kranen gevonden in deze ruimte: {trvs}\n\nZelfstandig: de ketel start zodra één kraan in deze zone om warmte vraagt.\nSamen: de ketel wacht tot genoeg kranen in deze zone om warmte vragen, zodat hij langer kan branden. Zodra de zone om warmte vraagt, blijft ze vragen tot al haar kranen tevreden zijn.",
+        "data": {
+          "mode": "Verwarmt",
+          "minimum_open": "Minimaal aantal kranen dat om warmte vraagt",
+          "minimum_demand": "Of minimale totale klepopening",
+          "maximum_wait": "Nooit langer wachten dan"
+        },
+        "data_description": {
+          "mode": "Hoe de kranen in deze zone om warmte vragen.",
+          "minimum_open": "Alleen bij Samen: de zone vraagt om warmte zodra zoveel van haar kranen om warmte vragen.",
+          "minimum_demand": "Alleen bij Samen: of zodra de klepopeningen (pi_heating_demand) van de kranen die om warmte vragen samen dit halen. 0 schakelt deze regel uit.",
+          "maximum_wait": "Alleen bij Samen: een kraan die in zijn eentje om warmte vraagt, krijgt na deze tijd toch warmte."
+        }
+      }
+    }
+  },
+  "selector": {
+    "zone_mode": {
+      "options": {
+        "independent": "Zelfstandig",
+        "together": "Samen"
       }
     }
   }
