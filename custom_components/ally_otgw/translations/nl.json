@@ -218,7 +218,10 @@
           "outside_temperature_fallback": "Blijven verwarmen zonder buitentemperatuur",
           "outside_temperature_fallback_hours": "Laatst bekende buitentemperatuur gebruiken gedurende",
           "outside_temperature_fallback_temperature": "Daarna uitgaan van een buitentemperatuur van",
-          "load_balancing_interval": "Interval lastverdeling"
+          "load_balancing_interval": "Interval lastverdeling",
+          "circulate_residual_heat": "Restwarmte rondpompen",
+          "circulate_minimum_temperature": "Rondpompen zolang het water warmer is dan",
+          "circulate_maximum_minutes": "Hooguit rondpompen gedurende"
         },
         "data_description": {
           "automatic_duty_cycle": "Hoe Pulsbreedtemodulatie (PWM) de aan/uit-cycli timet. Aan: Ally OTGW bepaalt de timing zelf, begrensd door Inschakelcycli per uur. Uit: één vaste cyclus van Maximale Inschakelduur (Algemeen) wordt verdeeld in aan- en uittijd. Dit zet PWM niet aan of uit: PWM draait zodra de gevraagde aanvoertemperatuur onder de Overshoot Beschermingswaarde ligt.",
@@ -229,7 +232,10 @@
           "outside_temperature_fallback": "Als de buitentemperatuur ontbreekt, blijven verwarmen op de laatst bekende waarde, en daarna op een aangenomen waarde. De kranen houden elke kamer op temperatuur, dit verandert alleen hoe warm het water is. Uit: de ketel blijft uit tot de buitentemperatuur terug is.",
           "outside_temperature_fallback_hours": "Hoe lang de laatst bekende buitentemperatuur gebruikt wordt. 0 gaat meteen naar de aangenomen temperatuur.",
           "outside_temperature_fallback_temperature": "De buitentemperatuur waarvan daarna wordt uitgegaan. Kies een voorzichtige, eerder koude waarde.",
-          "load_balancing_interval": "Hoe vaak de load_room_mean naar de kranen van zones met lastverdeling wordt geschreven."
+          "load_balancing_interval": "Hoe vaak de load_room_mean naar de kranen van zones met lastverdeling wordt geschreven.",
+          "circulate_residual_heat": "Als een kraan nog een beetje warmte wil, maar zijn klep onder de minimale opening van zijn zone staat, laat dan alleen de pomp van de ketel draaien (cv aan, minimale setpoint, geen brander) zolang het water in de ketel nog warm is. Zo komt de warmte die er nog is bij de radiatoren, in plaats van af te koelen in de ketel. Als de ketel toch brandt, stopt dit tot Home Assistant opnieuw start.",
+          "circulate_minimum_temperature": "Stoppen met rondpompen als het water kouder is dan dit.",
+          "circulate_maximum_minutes": "Stoppen met rondpompen na deze tijd. Er wordt één keer rondgepompt na elke branderbeurt."
         },
         "description": "Voor fijnafstelling en aanpassing.",
         "title": "Systeemconfiguratie"

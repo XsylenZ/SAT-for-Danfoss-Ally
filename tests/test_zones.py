@@ -67,7 +67,7 @@ def test_together_stops_waiting_after_the_maximum_wait() -> None:
 
 
 def test_together_keeps_calling_until_all_trvs_are_satisfied() -> None:
-    areas, states, zone = living_room(["climate.tv_hoek_r", "climate.tv_hoek_l"])
+    areas, states, zone = living_room(["climate.tv_hoek_r", "climate.tv_hoek_l"], {name: 40 for name in LIVING_ROOM})
     assert zone.calling
 
     # One TRV is satisfied, the other still wants heat, so the zone doesn't flap
@@ -98,10 +98,10 @@ def test_independent_zone_calls_for_a_single_trv() -> None:
 
 
 
-def study(opening: str | None, **settings):
+def study(opening: str | None, valves: bool = True, **settings):
     """The study with a heating TRV whose valve is open this far."""
     states = {"climate.werkkamer": create_state(22.1, 22.5, HVACAction.HEATING)}
-    areas = create_areas(states, {"werkkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, **settings, "trvs": ["climate.werkkamer"]}}, {"climate.werkkamer": opening} if opening is not None else None)
+    areas = create_areas(states, {"werkkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, **settings, "trvs": ["climate.werkkamer"]}}, {"climate.werkkamer": opening}, valves)
 
     return areas, areas.zones[0]
 
@@ -156,7 +156,22 @@ def test_the_minimum_opening_is_configurable() -> None:
 
 
 def test_a_trv_without_a_valve_opening_still_asks_for_heat() -> None:
-    assert study(None)[1].calling
+    assert study(None, valves=False)[1].calling
+
+
+def test_a_valve_opening_that_is_not_known_yet_does_not_start_asking() -> None:
+    # Right after a restart, the TRV is back before its valve opening
+    areas, zone = study(None)
+    assert not zone.calling
+    assert zone.waiting == ["climate.werkkamer"]
+
+    # Once it is known and open far enough, it asks; when it's briefly unknown again, it keeps asking
+    set_opening(areas, 30)
+    assert zone.calling
+
+    areas._hass.states.get = lambda entity_id: None if entity_id.endswith("pi_heating_demand") else create_state(22.1, 22.5, HVACAction.HEATING)
+    areas.update()
+    assert zone.calling
 
 def test_only_calling_zones_drive_the_boiler() -> None:
     areas = create_areas(
@@ -253,6 +268,7 @@ async def test_zones_follow_trvs_that_are_added_moved_and_removed(hass: HomeAssi
     assert zones["werkkamer"]["trvs"] == ["climate.werkkamer"]
 
     # And their state changes are followed
+    hass.states.async_set("sensor.werkkamer_pi_heating_demand", "60")
     hass.states.async_set("climate.werkkamer", HVACMode.HEAT, {"current_temperature": 19.0, "temperature": 20.0, "hvac_action": "heating", "hvac_modes": [HVACMode.HEAT]})
     await hass.async_block_till_done()
     await heating.async_control_heating_loop()

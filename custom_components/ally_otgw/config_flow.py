@@ -817,6 +817,14 @@ class SatOptionsFlowHandler(config_entries.OptionsFlowWithReload):
             selector.NumberSelectorConfig(min=5, max=60, step=5, unit_of_measurement="min")
         )
 
+        schema[vol.Required(CONF_CIRCULATE, default=options[CONF_CIRCULATE])] = bool
+        schema[vol.Required(CONF_CIRCULATE_MINIMUM_TEMPERATURE, default=options[CONF_CIRCULATE_MINIMUM_TEMPERATURE])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=25, max=60, step=1, unit_of_measurement="°C")
+        )
+        schema[vol.Required(CONF_CIRCULATE_MAXIMUM_MINUTES, default=options[CONF_CIRCULATE_MAXIMUM_MINUTES])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=60, step=1, unit_of_measurement="min")
+        )
+
         schema[vol.Required(CONF_FROST_GUARD_TEMPERATURE, default=options[CONF_FROST_GUARD_TEMPERATURE])] = selector.NumberSelector(
             selector.NumberSelectorConfig(min=5, max=18, step=0.5, unit_of_measurement="°C")
         )

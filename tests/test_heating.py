@@ -40,10 +40,12 @@ def setup(minimum_setpoint: float = 57, outside: float = 9.9, **options):
     )]
 
 
-def set_trv(hass: HomeAssistant, current: float, target: float, hvac_action: str | None = None, **kwargs) -> None:
+def set_trv(hass: HomeAssistant, current: float, target: float, hvac_action: str | None = None, opening: str = "100", **kwargs) -> None:
     attributes = {"current_temperature": current, "temperature": target, "hvac_modes": [HVACMode.HEAT]}
     if hvac_action is not None:
         attributes["hvac_action"] = hvac_action
+
+    hass.states.async_set("sensor.radiator_1_pi_heating_demand", opening)
 
     hass.states.async_set("climate.radiator_1", HVACMode.HEAT, attributes, **kwargs)
 
@@ -389,8 +391,7 @@ async def test_a_nearly_closed_valve_asks_for_a_low_flow_temperature(hass: HomeA
     await heating.async_turn_on()
 
     async def requested(opening: str) -> float:
-        hass.states.async_set("sensor.radiator_1_pi_heating_demand", opening)
-        set_trv(hass, 22.1, 22.5, "heating")
+        set_trv(hass, 22.1, 22.5, "heating", opening)
         heating._async_control_pid(True)
         await heating.async_control_heating_loop()
         return heating.requested_setpoint
@@ -402,3 +403,96 @@ async def test_a_nearly_closed_valve_asks_for_a_low_flow_temperature(hass: HomeA
     assert heating.areas.errors[0].value == 1.14
     assert nearly_closed < 50
     assert wide_open > nearly_closed + 10
+
+
+CIRCULATE = {CONF_CIRCULATE: True, CONF_CIRCULATE_MINIMUM_TEMPERATURE: 35, CONF_CIRCULATE_MAXIMUM_MINUTES: 15}
+
+
+async def start_circulating(hass: HomeAssistant, heating: SatHeating, coordinator: SatFakeCoordinator, flame) -> None:
+    """The study still wants a little heat, with its valve too far closed for the boiler, and the water is still warm."""
+    await add_trv(hass, "Woonkamer", "radiator_1")
+    set_trv(hass, 22.4, 22.5, "heating", "12")
+
+    flame.return_value = False
+    await coordinator.async_set_boiler_temperature(50)
+    await heating.async_turn_on()
+    await heating.async_control_heating_loop()
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(**CIRCULATE))
+async def test_circulates_the_warm_water_that_is_left(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    from unittest.mock import PropertyMock, patch
+
+    with patch.object(type(coordinator), "flame_active", new_callable=PropertyMock) as flame:
+        await start_circulating(hass, heating, coordinator, flame)
+
+        # Not firing the boiler, but central heating on with the minimum setpoint: the boiler only pumps
+        assert not heating.heat_demand
+        assert heating.circulating
+        assert coordinator.setpoint == MINIMUM_SETPOINT
+        assert coordinator.device_active
+
+        # The water is no longer warm enough to bother
+        await coordinator.async_set_boiler_temperature(34)
+        await heating.async_control_heating_loop()
+        assert not heating.circulating
+        assert not coordinator.device_active
+
+        # Warm again without a burn, so nothing new to circulate
+        await coordinator.async_set_boiler_temperature(50)
+        await heating.async_control_heating_loop()
+        assert not heating.circulating
+
+        # After a burn it may circulate again
+        flame.return_value = True
+        await heating.async_control_heating_loop()
+        flame.return_value = False
+        await heating.async_control_heating_loop()
+        assert heating.circulating
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(**CIRCULATE))
+async def test_circulates_for_a_limited_time(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    from unittest.mock import PropertyMock, patch
+
+    with patch.object(type(coordinator), "flame_active", new_callable=PropertyMock) as flame:
+        await start_circulating(hass, heating, coordinator, flame)
+        assert heating.circulating
+
+        heating._circulating_since -= 15 * 60 + 1
+        await heating.async_control_heating_loop()
+
+        assert not heating.circulating
+        assert not coordinator.device_active
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(**CIRCULATE))
+async def test_stops_circulating_for_good_when_the_boiler_fires(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    from unittest.mock import PropertyMock, patch
+
+    with patch.object(type(coordinator), "flame_active", new_callable=PropertyMock) as flame:
+        await start_circulating(hass, heating, coordinator, flame)
+        assert heating.circulating
+
+        # The boiler fires on its own, although we only wanted it to pump
+        flame.return_value = True
+        await heating.async_control_heating_loop()
+        assert not heating.circulating
+        assert not coordinator.device_active
+
+        # Even after a burn, we don't try again
+        flame.return_value = False
+        await coordinator.async_set_boiler_temperature(50)
+        await heating.async_control_heating_loop()
+        assert not heating.circulating
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup())
+async def test_does_not_circulate_unless_turned_on(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    from unittest.mock import PropertyMock, patch
+
+    with patch.object(type(coordinator), "flame_active", new_callable=PropertyMock) as flame:
+        await start_circulating(hass, heating, coordinator, flame)
+
+        assert not heating.circulating
+        assert not coordinator.device_active

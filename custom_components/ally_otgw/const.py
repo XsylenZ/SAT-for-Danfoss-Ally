@@ -40,6 +40,11 @@ CONF_OUTSIDE_FALLBACK_HOURS = "outside_temperature_fallback_hours"
 CONF_OUTSIDE_FALLBACK_TEMPERATURE = "outside_temperature_fallback_temperature"
 
 OUTSIDE_SOURCE_SENSOR = "sensor"
+
+# Circulate the warm water that is left to TRVs that still want a little heat: pump on, burner off
+CONF_CIRCULATE = "circulate_residual_heat"
+CONF_CIRCULATE_MINIMUM_TEMPERATURE = "circulate_minimum_temperature"
+CONF_CIRCULATE_MAXIMUM_MINUTES = "circulate_maximum_minutes"
 OUTSIDE_SOURCE_LAST_KNOWN = "last_known"
 OUTSIDE_SOURCE_ASSUMED = "assumed"
 
@@ -210,6 +215,9 @@ OPTIONS_DEFAULTS = {
     CONF_FROST_GUARD_TEMPERATURE: 10.0,
     CONF_FROST_GUARD_OUTSIDE_TEMPERATURE: 3.0,
     CONF_OUTSIDE_FALLBACK: True,
+    CONF_CIRCULATE: False,
+    CONF_CIRCULATE_MINIMUM_TEMPERATURE: 35,
+    CONF_CIRCULATE_MAXIMUM_MINUTES: 15,
     CONF_OUTSIDE_FALLBACK_HOURS: 6,
     CONF_OUTSIDE_FALLBACK_TEMPERATURE: 5.0,
     CONF_HEATING_MODE: HEATING_MODE_COMFORT,

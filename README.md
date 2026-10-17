@@ -75,7 +75,15 @@ In every zone, a TRV only asks for heat when its valve (`pi_heating_demand`) is 
 the TRV is regulating its last tenths of a degree with the heat that is already there, and firing the
 boiler for it would only make the boiler overshoot and cut out. Once a TRV asks for heat, it keeps
 asking until its valve is 5% below the minimum, so a valve around it doesn't switch the boiler on and
-off. TRVs that don't report their valve opening always count. 0 turns this off.
+off. TRVs that don't report their valve opening always count; a TRV that does, but hasn't reported it
+yet (e.g. right after a restart), waits until it has. 0 turns this off.
+
+With **Circulate residual heat** (System Configuration, off by default), a TRV that still wants a
+little heat with its valve below the minimum gets the warm water that's left in the boiler and the
+pipes: central heating stays on with the minimum setpoint, so the boiler only runs its pump, while
+the water is above 35 °C and for at most 15 minutes, once after every burn. If the boiler fires
+anyway, circulating stops until Home Assistant restarts. The `circulating` attribute of the heating
+switch shows when it does.
 
 Every zone either heats:
 
@@ -122,7 +130,7 @@ Changing any setting reloads the integration; no restart of Home Assistant is ne
 |---|---|
 | Configure → General | PID controller, maximum setpoint, heating curve coefficient, **Overshoot Hold** |
 | Configure → Zones | The zones and their settings, including **load balancing** |
-| Configure → System Configuration | Duty cycles, sensor age, **load balancing interval**, **frost guard**, **outside temperature fallback** |
+| Configure → System Configuration | Duty cycles, sensor age, **load balancing interval**, **circulate residual heat**, **frost guard**, **outside temperature fallback** |
 | Configure → Advanced Options | PWM, consumption, relative modulation, sample time |
 | ⋮ → Reconfigure | Gateway connection, outside temperature, overshoot protection value |
 

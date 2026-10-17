@@ -198,6 +198,11 @@ class Areas:
         ])
 
     @property
+    def waiting(self) -> bool:
+        """Return True when a TRV still wants a little heat, with its valve too far closed to fire the boiler for."""
+        return any(zone.waiting for zone in self._zones)
+
+    @property
     def demand(self) -> bool | None:
         """Return True when any zone is calling for heat, or None when no zone can tell us."""
         if not any(zone.available for zone in self._zones):

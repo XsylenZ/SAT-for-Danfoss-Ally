@@ -74,6 +74,10 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self._frost_guard_active = False
 
         self._outside_source: str | None = None
+
+        self._circulating_since: float | None = None
+        self._circulation_used = False
+        self._circulation_blocked = False
         self._last_outside_temperature: float | None = None
         self._last_outside_temperature_time: float | None = None
 
@@ -96,6 +100,10 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self._sensor_max_value_age = convert_time_str_to_seconds(config_options.get(CONF_SENSOR_MAX_VALUE_AGE))
 
         self._load_balancing_interval = timedelta(minutes=float(config_options.get(CONF_LOAD_BALANCING_INTERVAL)))
+
+        self._circulate = bool(config_options.get(CONF_CIRCULATE))
+        self._circulate_minimum_temperature = float(config_options.get(CONF_CIRCULATE_MINIMUM_TEMPERATURE))
+        self._circulate_maximum_seconds = float(config_options.get(CONF_CIRCULATE_MAXIMUM_MINUTES)) * 60
 
         self._frost_guard_temperature = float(config_options.get(CONF_FROST_GUARD_TEMPERATURE))
         self._frost_guard_outside_temperature = float(config_options.get(CONF_FROST_GUARD_OUTSIDE_TEMPERATURE))
@@ -333,6 +341,7 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
             "heat_demand": self.heat_demand,
             "heat_allowed": self._heat_allowed,
             "frost_guard": self._frost_guard_active,
+            "circulating": self.circulating,
             "failsafe": self._failsafe_active,
 
             "pulse_width_modulation_enabled": self.pwm.enabled,
@@ -439,6 +448,11 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
     @property
     def setpoint(self) -> float | None:
         return self._setpoint
+
+    @property
+    def circulating(self) -> bool:
+        """Return True while we pump the warm water that is left around, without firing the boiler."""
+        return self._circulating_since is not None
 
     @property
     def requested_setpoint(self) -> float:
@@ -727,6 +741,48 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
             self._heat_allowed = False
             _LOGGER.info("Finished the burn without any room calling for heat, stopping.")
 
+    def _update_circulation(self) -> None:
+        """Pump the warm water that is left to the TRVs that still want a little heat, without firing the boiler.
+
+        With central heating enabled and the setpoint below the water temperature, the boiler only runs its pump. That
+        brings the heat that is still in the boiler and the pipes to the radiators, instead of letting it cool down there.
+        """
+        flow_temperature = self._coordinator.boiler_temperature
+
+        if self.circulating:
+            # The boiler should only pump, if it fires anyway we don't try this again
+            if self._coordinator.flame_active:
+                _LOGGER.warning("The boiler fired while we only wanted to circulate, not circulating anymore until Home Assistant restarts.")
+                self._circulation_blocked = True
+                self._stop_circulation()
+                return
+
+            if (
+                    self._heat_allowed or not self.areas.waiting or flow_temperature is None or
+                    flow_temperature < self._circulate_minimum_temperature or
+                    monotonic() - self._circulating_since > self._circulate_maximum_seconds
+            ):
+                self._stop_circulation()
+
+            return
+
+        # A burn heats the water again, so afterwards it may be circulated again
+        if self._coordinator.flame_active:
+            self._circulation_used = False
+            return
+
+        if (
+                self._circulate and not self._circulation_blocked and not self._circulation_used and not self._heat_allowed and
+                self.areas.waiting and flow_temperature is not None and flow_temperature >= self._circulate_minimum_temperature
+        ):
+            _LOGGER.info("Circulating the remaining %.1f°C water to the TRVs that still want a little heat.", flow_temperature)
+            self._circulating_since = monotonic()
+
+    def _stop_circulation(self) -> None:
+        _LOGGER.info("Stopped circulating the remaining water.")
+        self._circulating_since = None
+        self._circulation_used = True
+
     async def _async_control_failsafe(self) -> None:
         """Turn the heater off, because we are missing the outside temperature to control it."""
         if not self._failsafe_active:
@@ -820,6 +876,7 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
 
         # Determine if we are allowed to heat, now that we know the latest flame state
         self._update_heat_allowed()
+        self._update_circulation()
 
         if self._calculated_setpoint is None:
             # Default to the calculated setpoint
@@ -862,7 +919,9 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
             self.minimum_setpoint.calculate(self._coordinator.boiler, self.pwm.status)
 
         # If the setpoint is high, turn on the heater
-        await self.async_set_heater_state(DeviceState.ON if self._setpoint is not None and self._setpoint > COLD_SETPOINT else DeviceState.OFF)
+        # While circulating, central heating stays on with the minimum setpoint, so the boiler only runs its pump
+        heater_on = self.circulating or (self._setpoint is not None and self._setpoint > COLD_SETPOINT)
+        await self.async_set_heater_state(DeviceState.ON if heater_on else DeviceState.OFF)
 
         self.async_write_ha_state()
 
@@ -901,7 +960,7 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         await self._async_set_on(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Stop controlling the boiler, and make sure it doesn't heat anymore."""
+        """Stop controlling the boiler, and make sure it doesn't heat or pump anymore."""
         await self._async_set_on(False)
 
         self._setpoint = MINIMUM_SETPOINT
@@ -910,6 +969,7 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
 
     async def _async_set_on(self, is_on: bool) -> None:
         self._is_on = is_on
+        self._circulating_since = None
 
         # Reset the PID controller
         self._async_control_pid(True)

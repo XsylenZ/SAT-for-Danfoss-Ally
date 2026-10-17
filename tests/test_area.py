@@ -97,13 +97,14 @@ def test_hold_is_configurable() -> None:
     assert area.error.value == 1.2
 
 
-def create_areas(states: dict[str, State | None], zones: dict[str, dict] | None = None, openings: dict[str, float] | None = None) -> Areas:
-    """Create areas for the given TRV states, by default all in one independent zone."""
+def create_areas(states: dict[str, State | None], zones: dict[str, dict] | None = None, openings: dict[str, float | None] | None = None, valves: bool = True) -> Areas:
+    """Create areas for the given TRV states, by default all in one independent zone, with their valves fully open."""
     zones = zones or {"zone": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, "trvs": list(states)}}
-    sensors = {f"sensor.{entity_id.split('.')[1]}_pi_heating_demand": State("sensor.x", str(opening)) for entity_id, opening in (openings or {}).items()}
+    openings = {**{entity_id: 100 for entity_id in states}, **(openings or {})}
+    sensors = {f"sensor.{entity_id.split('.')[1]}_pi_heating_demand": State("sensor.x", str(opening)) for entity_id, opening in openings.items() if opening is not None}
 
     def discover(_hass, area_id: str) -> list[Trv]:
-        return [Trv(entity_id, pi_heating_demand=f"sensor.{entity_id.split('.')[1]}_pi_heating_demand") for entity_id in zones[area_id]["trvs"]]
+        return [Trv(entity_id, pi_heating_demand=f"sensor.{entity_id.split('.')[1]}_pi_heating_demand" if valves else None) for entity_id in zones[area_id]["trvs"]]
 
     settings = [{CONF_ZONE_AREA: area_id, **{key: value for key, value in zone.items() if key != "trvs"}} for area_id, zone in zones.items()]
     areas = Areas(MappingProxyType(DEFAULT_USER_DATA), MappingProxyType({**OPTIONS_DEFAULTS, CONF_ZONES: settings}), discover=discover)

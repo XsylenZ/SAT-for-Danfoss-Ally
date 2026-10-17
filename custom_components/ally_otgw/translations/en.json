@@ -225,7 +225,10 @@
           "outside_temperature_fallback": "Keep heating without outside temperature",
           "outside_temperature_fallback_hours": "Use the last known outside temperature for",
           "outside_temperature_fallback_temperature": "Then assume an outside temperature of",
-          "load_balancing_interval": "Load balancing interval"
+          "load_balancing_interval": "Load balancing interval",
+          "circulate_residual_heat": "Circulate residual heat",
+          "circulate_minimum_temperature": "Circulate while the water is above",
+          "circulate_maximum_minutes": "Circulate for at most"
         },
         "data_description": {
           "cycles_per_hour": "The maximum number of burner cycles per hour while Pulse Width Modulation (PWM) is running. This does not turn PWM on or off.",
@@ -236,7 +239,10 @@
           "outside_temperature_fallback": "When the outside temperature is missing, keep heating on the last known value, and then on an assumed one. The TRVs keep every room at its target, so this only changes how warm the water is. Off: the boiler stays off until the outside temperature is back.",
           "outside_temperature_fallback_hours": "How long the last known outside temperature is used. 0 goes to the assumed temperature right away.",
           "outside_temperature_fallback_temperature": "The outside temperature that is assumed after that. Choose a cautious, rather cold value.",
-          "load_balancing_interval": "How often the load room mean is written to the TRVs of zones with load balancing."
+          "load_balancing_interval": "How often the load room mean is written to the TRVs of zones with load balancing.",
+          "circulate_residual_heat": "When a TRV still wants a little heat, but its valve is below the minimum opening of its zone, run only the boiler's pump (central heating on, minimum setpoint, no burner) while the water in the boiler is still warm. That brings the heat that's left to the radiators, instead of letting it cool down in the boiler. If the boiler fires anyway, this stops until Home Assistant restarts.",
+          "circulate_minimum_temperature": "Stop circulating when the water is colder than this.",
+          "circulate_maximum_minutes": "Stop circulating after this long. It circulates once after every burn."
         },
         "description": "For fine-tuning and customization.",
         "title": "System Configuration"

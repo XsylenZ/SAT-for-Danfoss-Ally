@@ -100,6 +100,7 @@ class Zone:
         self.calling: bool = False
         self.available: bool = False
         self.heating: list[str] = []
+        self.waiting: list[str] = []
         self.opening: float = 0.0
 
         self._waiting_since: float | None = None
@@ -108,11 +109,12 @@ class Zone:
     def update(self, areas: dict[str, "Area"], hass: HomeAssistant | None) -> None:
         """Determine whether this zone is calling for heat."""
         available = [areas[trv.climate] for trv in self.trvs if areas[trv.climate].available]
-        heating = [
-            trv for trv in self.trvs
-            if areas[trv.climate] in available and (error := areas[trv.climate].error) is not None and error.value > 0 and self._asks_for_heat(hass, trv)
-        ]
+        wanting = [trv for trv in self.trvs if areas[trv.climate] in available and (error := areas[trv.climate].error) is not None and error.value > 0]
+        heating = [trv for trv in wanting if self._asks_for_heat(hass, trv)]
         self._asking = {trv.climate for trv in heating}
+
+        # TRVs that still want a little heat, but whose valve is too far closed to fire the boiler for
+        self.waiting = [trv.climate for trv in wanting if trv not in heating]
 
         self.available = len(available) > 0
         self.heating = [trv.climate for trv in heating]
@@ -148,8 +150,13 @@ class Zone:
         A nearly closed valve hardly lets any water through: the TRV regulates its last tenths of a degree with the heat
         that is already there, firing the boiler for it only makes it overshoot. Without a valve opening it always counts.
         """
-        if (valve := valve_opening(hass, trv)) is None:
+        # TRVs that don't report how far their valve is open always count
+        if trv.pi_heating_demand is None:
             return True
+
+        # A TRV that does, but hasn't yet (e.g. right after a restart), doesn't start asking before it does
+        if (valve := valve_opening(hass, trv)) is None:
+            return trv.climate in self._asking
 
         # Once it counts, keep counting a little below the minimum, so a valve around it doesn't switch the boiler on and off
         if trv.climate in self._asking:
