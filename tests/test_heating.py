@@ -230,7 +230,7 @@ async def test_stale_room_is_ignored_until_it_reports_again(hass: HomeAssistant,
     assert heating.requested_setpoint > COLD_SETPOINT
 
 
-@pytest.mark.parametrize("domains, data, options, config", setup())
+@pytest.mark.parametrize("domains, data, options, config", setup(**{CONF_OUTSIDE_FALLBACK: False}))
 async def test_failsafe_without_outside_temperature(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
     await add_trv(hass, "Woonkamer", "radiator_1")
     set_trv(hass, 19.0, 20.0, "heating")
@@ -271,17 +271,17 @@ async def test_frost_guard_without_any_available_trv(hass: HomeAssistant, entry:
 
     assert heating.extra_state_attributes["frost_guard"]
     assert heating.heat_demand
-    assert heating.target_temperature == FROST_GUARD_TARGET_TEMPERATURE
+    assert heating.target_temperature == OPTIONS_DEFAULTS[CONF_FROST_GUARD_TEMPERATURE]
     assert heating.heating_curve.value == 32.6
     assert heating.requested_setpoint == 32.6
 
     # Warmer outside, but within the hysteresis, it keeps guarding
-    hass.states.async_set("sensor.test_outside_sensor", str(FROST_GUARD_OUTSIDE_TEMPERATURE + 0.5))
+    hass.states.async_set("sensor.test_outside_sensor", str(OPTIONS_DEFAULTS[CONF_FROST_GUARD_OUTSIDE_TEMPERATURE] + 0.5))
     await heating.async_control_heating_loop()
     assert heating.extra_state_attributes["frost_guard"]
 
     # Above it, the frost guard stops and nothing calls for heat
-    hass.states.async_set("sensor.test_outside_sensor", str(FROST_GUARD_OUTSIDE_TEMPERATURE + FROST_GUARD_HYSTERESIS + 0.5))
+    hass.states.async_set("sensor.test_outside_sensor", str(OPTIONS_DEFAULTS[CONF_FROST_GUARD_OUTSIDE_TEMPERATURE] + FROST_GUARD_HYSTERESIS + 0.5))
     await heating.async_control_heating_loop()
     assert not heating.extra_state_attributes["frost_guard"]
     assert not heating.heat_demand
@@ -306,3 +306,76 @@ async def test_frost_guard_without_zones(hass: HomeAssistant, entry: MockConfigE
     # Without any zone, the only thing we do is protect against frost
     assert heating.extra_state_attributes["frost_guard"]
     assert heating.heat_demand
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(48, 0.0, **{CONF_HEATING_CURVE_COEFFICIENT: 2.0, CONF_FROST_GUARD_TEMPERATURE: 15.0, CONF_FROST_GUARD_OUTSIDE_TEMPERATURE: 1.0}))
+async def test_frost_guard_is_configurable(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    await coordinator.async_set_boiler_temperature(48)
+    await heating.async_turn_on()
+    await heating.async_control_heating_loop()
+
+    # Below the configured outside temperature, heating for the configured temperature
+    assert heating.extra_state_attributes["frost_guard"]
+    assert heating.target_temperature == 15.0
+
+    hass.states.async_set("sensor.test_outside_sensor", "2.5")
+    await heating.async_control_heating_loop()
+    assert not heating.extra_state_attributes["frost_guard"]
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(**{CONF_OUTSIDE_FALLBACK_HOURS: 6, CONF_OUTSIDE_FALLBACK_TEMPERATURE: 5.0}))
+async def test_keeps_heating_without_outside_temperature(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    await add_trv(hass, "Woonkamer", "radiator_1")
+    set_trv(hass, 19.0, 20.0, "heating")
+
+    await coordinator.async_set_boiler_temperature(57)
+    await heating.async_turn_on()
+    await heating.async_control_heating_loop()
+    assert heating.extra_state_attributes["outside_temperature_source"] == OUTSIDE_SOURCE_SENSOR
+
+    # The outside temperature is gone, so we keep heating on the last known value
+    hass.states.async_set("sensor.test_outside_sensor", STATE_UNAVAILABLE)
+    await heating.async_control_heating_loop()
+
+    assert heating.current_outside_temperature == 9.9
+    assert heating.extra_state_attributes["outside_temperature_source"] == OUTSIDE_SOURCE_LAST_KNOWN
+    assert not heating.extra_state_attributes["failsafe"]
+    assert coordinator.flame_active
+
+    # Too long ago, so we assume the configured outside temperature
+    heating._last_outside_temperature_time -= 6 * 3600 + 1
+    await heating.async_control_heating_loop()
+
+    assert heating.current_outside_temperature == 5.0
+    assert heating.extra_state_attributes["outside_temperature_source"] == OUTSIDE_SOURCE_ASSUMED
+    assert coordinator.flame_active
+
+    # It is back
+    hass.states.async_set("sensor.test_outside_sensor", "8.0")
+    await heating.async_control_heating_loop()
+
+    assert heating.current_outside_temperature == 8.0
+    assert heating.extra_state_attributes["outside_temperature_source"] == OUTSIDE_SOURCE_SENSOR
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup())
+async def test_last_known_outside_temperature_survives_a_restart(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating) -> None:
+    from homeassistant.core import State
+
+    attributes = heating.extra_state_attributes
+    assert attributes["last_outside_temperature"] == 9.9
+    assert attributes["last_outside_temperature_time"] is not None
+
+    # What we stored is what we restore
+    from unittest.mock import AsyncMock, patch
+
+    from time import time
+
+    # Home Assistant restarts while the outside sensor is unavailable: we continue from what we knew
+    hass.states.async_set("sensor.test_outside_sensor", STATE_UNAVAILABLE)
+    restored = State(heating.entity_id, STATE_ON, {"last_outside_temperature": 4.5, "last_outside_temperature_time": time() - 60})
+    with patch.object(heating, "async_get_last_state", AsyncMock(return_value=restored)):
+        await heating._restore_previous_state_or_set_defaults()
+
+    assert heating.current_outside_temperature == 4.5
+    assert heating.extra_state_attributes["outside_temperature_source"] == OUTSIDE_SOURCE_LAST_KNOWN

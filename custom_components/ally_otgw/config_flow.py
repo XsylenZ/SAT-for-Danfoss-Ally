@@ -800,6 +800,21 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
 
         schema[vol.Required(CONF_SENSOR_MAX_VALUE_AGE, default=options[CONF_SENSOR_MAX_VALUE_AGE])] = selector.TimeSelector()
 
+        schema[vol.Required(CONF_FROST_GUARD_TEMPERATURE, default=options[CONF_FROST_GUARD_TEMPERATURE])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=5, max=18, step=0.5, unit_of_measurement="°C")
+        )
+        schema[vol.Required(CONF_FROST_GUARD_OUTSIDE_TEMPERATURE, default=options[CONF_FROST_GUARD_OUTSIDE_TEMPERATURE])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=-15, max=15, step=0.5, unit_of_measurement="°C")
+        )
+
+        schema[vol.Required(CONF_OUTSIDE_FALLBACK, default=options[CONF_OUTSIDE_FALLBACK])] = bool
+        schema[vol.Required(CONF_OUTSIDE_FALLBACK_HOURS, default=options[CONF_OUTSIDE_FALLBACK_HOURS])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=48, step=1, unit_of_measurement="h")
+        )
+        schema[vol.Required(CONF_OUTSIDE_FALLBACK_TEMPERATURE, default=options[CONF_OUTSIDE_FALLBACK_TEMPERATURE])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=-20, max=15, step=0.5, unit_of_measurement="°C")
+        )
+
         return self.async_show_form(
             step_id="system_configuration",
             data_schema=vol.Schema(schema)

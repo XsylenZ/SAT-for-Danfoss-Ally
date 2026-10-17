@@ -26,10 +26,19 @@ AREA_STATE_MAX_AGE = 3600
 # Once no room is calling for heat, a running burn may finish, but never for longer than this (in seconds)
 DEMAND_BURN_FINISH_TIMEOUT = 600
 
-# Frost guard: when none of the TRVs is available, heat for this temperature below this outside temperature
-FROST_GUARD_TARGET_TEMPERATURE = 10.0
-FROST_GUARD_OUTSIDE_TEMPERATURE = 3.0
+# Frost guard: when none of the TRVs is available, heat for a temperature below an outside temperature
+CONF_FROST_GUARD_TEMPERATURE = "frost_guard_temperature"
+CONF_FROST_GUARD_OUTSIDE_TEMPERATURE = "frost_guard_outside_temperature"
 FROST_GUARD_HYSTERESIS = 1.0
+
+# Without the outside temperature, keep heating on the last known value for a while, and then on an assumed one
+CONF_OUTSIDE_FALLBACK = "outside_temperature_fallback"
+CONF_OUTSIDE_FALLBACK_HOURS = "outside_temperature_fallback_hours"
+CONF_OUTSIDE_FALLBACK_TEMPERATURE = "outside_temperature_fallback_temperature"
+
+OUTSIDE_SOURCE_SENSOR = "sensor"
+OUTSIDE_SOURCE_LAST_KNOWN = "last_known"
+OUTSIDE_SOURCE_ASSUMED = "assumed"
 
 HEATER_STARTUP_TIMEFRAME = 180
 
@@ -183,6 +192,11 @@ OPTIONS_DEFAULTS = {
     CONF_HEATING_CURVE_COEFFICIENT: 2.0,
     CONF_OVERSHOOT_HOLD: 0.5,
     CONF_ZONES: [],
+    CONF_FROST_GUARD_TEMPERATURE: 10.0,
+    CONF_FROST_GUARD_OUTSIDE_TEMPERATURE: 3.0,
+    CONF_OUTSIDE_FALLBACK: True,
+    CONF_OUTSIDE_FALLBACK_HOURS: 6,
+    CONF_OUTSIDE_FALLBACK_TEMPERATURE: 5.0,
     CONF_HEATING_MODE: HEATING_MODE_COMFORT,
     CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS,
 

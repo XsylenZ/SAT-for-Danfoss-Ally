@@ -212,12 +212,22 @@
         "data": {
           "automatic_duty_cycle": "Automatische inschakelduur",
           "cycles_per_hour": "Inschakelcycli per uur",
-          "sensor_max_value_age": "Maximale leeftijd van de waarden van de temperatuursensor"
+          "sensor_max_value_age": "Maximale leeftijd van de waarden van de temperatuursensor",
+          "frost_guard_temperature": "Vorstbeveiliging: temperatuur",
+          "frost_guard_outside_temperature": "Vorstbeveiliging: onder buitentemperatuur",
+          "outside_temperature_fallback": "Blijven verwarmen zonder buitentemperatuur",
+          "outside_temperature_fallback_hours": "Laatst bekende buitentemperatuur gebruiken gedurende",
+          "outside_temperature_fallback_temperature": "Daarna uitgaan van een buitentemperatuur van"
         },
         "data_description": {
           "automatic_duty_cycle": "Hoe Pulsbreedtemodulatie (PWM) de aan/uit-cycli timet. Aan: Ally OTGW bepaalt de timing zelf, begrensd door Inschakelcycli per uur. Uit: één vaste cyclus van Maximale Inschakelduur (Algemeen) wordt verdeeld in aan- en uittijd. Dit zet PWM niet aan of uit: PWM draait zodra de gevraagde aanvoertemperatuur onder de Overshoot Beschermingswaarde ligt.",
           "cycles_per_hour": "Het maximale aantal branderstarts per uur terwijl Pulsbreedtemodulatie (PWM) actief is. Dit zet PWM niet aan of uit.",
-          "sensor_max_value_age": "De maximale leeftijd van de waarden van de temperatuursensor voordat het als verouderd wordt beschouwd."
+          "sensor_max_value_age": "De maximale leeftijd van de waarden van de temperatuursensor voordat het als verouderd wordt beschouwd.",
+          "frost_guard_temperature": "Als geen enkele kraan beschikbaar is, verwarmt de ketel alsof het huis deze temperatuur wil. Met een gangbare stooklijn start 10 °C de ketel pas bij flinke vorst; 15 °C vanaf ongeveer -2 °C buiten.",
+          "frost_guard_outside_temperature": "De vorstbeveiliging werkt alleen onder deze buitentemperatuur.",
+          "outside_temperature_fallback": "Als de buitentemperatuur ontbreekt, blijven verwarmen op de laatst bekende waarde, en daarna op een aangenomen waarde. De kranen houden elke kamer op temperatuur, dit verandert alleen hoe warm het water is. Uit: de ketel blijft uit tot de buitentemperatuur terug is.",
+          "outside_temperature_fallback_hours": "Hoe lang de laatst bekende buitentemperatuur gebruikt wordt. 0 gaat meteen naar de aangenomen temperatuur.",
+          "outside_temperature_fallback_temperature": "De buitentemperatuur waarvan daarna wordt uitgegaan. Kies een voorzichtige, eerder koude waarde."
         },
         "description": "Voor fijnafstelling en aanpassing.",
         "title": "Systeemconfiguratie"

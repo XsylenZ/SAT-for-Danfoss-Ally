@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta, datetime
-from time import monotonic
+from time import monotonic, time
 from typing import Optional, Callable, Any
 
 from homeassistant.components import sensor, weather
@@ -23,7 +23,7 @@ from .const import PWMStatus
 from .coordinator import SatDataUpdateCoordinator, DeviceState
 from .entity import SatEntity
 from .errors import Errors, Error
-from .helpers import convert_time_str_to_seconds
+from .helpers import convert_time_str_to_seconds, float_value
 from .manufacturers.geminox import Geminox
 from .pwm import PWMState
 from .relative_modulation import RelativeModulation, RelativeModulationState
@@ -32,6 +32,8 @@ from .util import create_pid_controller, create_heating_curve_controller, create
 ATTR_SETPOINT = "setpoint"
 ATTR_OPTIMAL_COEFFICIENT = "optimal_coefficient"
 ATTR_COEFFICIENT_DERIVATIVE = "coefficient_derivative"
+ATTR_LAST_OUTSIDE_TEMPERATURE = "last_outside_temperature"
+ATTR_LAST_OUTSIDE_TEMPERATURE_TIME = "last_outside_temperature_time"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,6 +72,10 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self._failsafe_active = False
         self._frost_guard_active = False
 
+        self._outside_source: str | None = None
+        self._last_outside_temperature: float | None = None
+        self._last_outside_temperature_time: float | None = None
+
         self._control_heating_loop_unsub: Optional[Callable[[], None]] = None
         self._zones_unsub: Optional[Callable[[], None]] = None
 
@@ -87,6 +93,13 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self._minimum_setpoint_version = int(config_options.get(CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION))
         self._force_pulse_width_modulation = bool(config_options.get(CONF_FORCE_PULSE_WIDTH_MODULATION))
         self._sensor_max_value_age = convert_time_str_to_seconds(config_options.get(CONF_SENSOR_MAX_VALUE_AGE))
+
+        self._frost_guard_temperature = float(config_options.get(CONF_FROST_GUARD_TEMPERATURE))
+        self._frost_guard_outside_temperature = float(config_options.get(CONF_FROST_GUARD_OUTSIDE_TEMPERATURE))
+
+        self._outside_fallback = bool(config_options.get(CONF_OUTSIDE_FALLBACK))
+        self._outside_fallback_seconds = float(config_options.get(CONF_OUTSIDE_FALLBACK_HOURS)) * 3600
+        self._outside_fallback_temperature = float(config_options.get(CONF_OUTSIDE_FALLBACK_TEMPERATURE))
 
         # Create a PID controller with given configuration options
         self.pid = create_pid_controller(config_options)
@@ -225,6 +238,10 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
             if old_state.attributes.get(ATTR_SETPOINT):
                 self._setpoint = old_state.attributes.get(ATTR_SETPOINT)
 
+            if old_state.attributes.get(ATTR_LAST_OUTSIDE_TEMPERATURE) is not None:
+                self._last_outside_temperature = float(old_state.attributes.get(ATTR_LAST_OUTSIDE_TEMPERATURE))
+                self._last_outside_temperature_time = float(old_state.attributes.get(ATTR_LAST_OUTSIDE_TEMPERATURE_TIME) or 0)
+
             if old_state.attributes.get(ATTR_OPTIMAL_COEFFICIENT):
                 self.heating_curve.restore_autotune(
                     old_state.attributes.get(ATTR_OPTIMAL_COEFFICIENT),
@@ -291,6 +308,9 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
             "requested_setpoint": self.requested_setpoint,
             "minimum_setpoint": self.minimum_setpoint_value,
             "outside_temperature": self.current_outside_temperature,
+            "outside_temperature_source": self._outside_source,
+            ATTR_LAST_OUTSIDE_TEMPERATURE: self._last_outside_temperature,
+            ATTR_LAST_OUTSIDE_TEMPERATURE_TIME: self._last_outside_temperature_time,
             "optimal_coefficient": self.heating_curve.optimal_coefficient,
             "coefficient_derivative": self.heating_curve.coefficient_derivative,
 
@@ -314,7 +334,7 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
     def target_temperature(self) -> float | None:
         """Return the temperature we heat for: the target of the TRV that drives the boiler, or the frost guard."""
         if self._frost_guard_active:
-            return FROST_GUARD_TARGET_TEMPERATURE
+            return self._frost_guard_temperature
 
         if (target_temperature := self.areas.target_temperature(self.max_error.entity_id)) is not None:
             return target_temperature
@@ -323,21 +343,55 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         return self.areas.highest_target_temperature()
 
     @property
-    def current_outside_temperature(self):
-        """Return the current outside temperature"""
+    def current_outside_temperature(self) -> float | None:
+        """Return the outside temperature, or what we fall back to while it is missing."""
+        if (temperature := self._read_outside_temperature()) is not None:
+            self._last_outside_temperature = temperature
+            self._last_outside_temperature_time = time()
+            self._set_outside_source(OUTSIDE_SOURCE_SENSOR)
+            return temperature
+
+        if not self._outside_fallback:
+            self._set_outside_source(None)
+            return None
+
+        # The TRVs keep the rooms at their target, so a wrong outside temperature only changes how warm the water is
+        if self._last_outside_temperature is not None and time() - (self._last_outside_temperature_time or 0) <= self._outside_fallback_seconds:
+            self._set_outside_source(OUTSIDE_SOURCE_LAST_KNOWN)
+            return self._last_outside_temperature
+
+        self._set_outside_source(OUTSIDE_SOURCE_ASSUMED)
+        return self._outside_fallback_temperature
+
+    def _read_outside_temperature(self) -> float | None:
+        """Return the outside temperature from the first sensor that has one, preferring sensors over weather."""
         self.outside_sensor_entities.sort(key=lambda x: "sensor" not in x)
         for entity_id in self.outside_sensor_entities:
             state = self.hass.states.get(entity_id)
             if state is None or state.state in [STATE_UNKNOWN, STATE_UNAVAILABLE]:
                 continue
 
-            if sensor.DOMAIN in entity_id:
-                return float(state.state)
+            if sensor.DOMAIN in entity_id and (temperature := float_value(state.state)) is not None:
+                return temperature
 
-            if weather.DOMAIN in entity_id:
-                return float(state.attributes.get("temperature"))
+            if weather.DOMAIN in entity_id and (temperature := float_value(state.attributes.get("temperature"))) is not None:
+                return temperature
 
         return None
+
+    def _set_outside_source(self, source: str | None) -> None:
+        """Remember where the outside temperature comes from, and tell the user when that changes."""
+        if source == self._outside_source:
+            return
+
+        if source == OUTSIDE_SOURCE_LAST_KNOWN:
+            _LOGGER.warning("The outside temperature is missing, using the last known %.1f°C for at most %.0f hours.", self._last_outside_temperature, self._outside_fallback_seconds / 3600)
+        elif source == OUTSIDE_SOURCE_ASSUMED:
+            _LOGGER.warning("The outside temperature is still missing, assuming %.1f°C.", self._outside_fallback_temperature)
+        elif source == OUTSIDE_SOURCE_SENSOR and self._outside_source is not None:
+            _LOGGER.warning("The outside temperature is available again.")
+
+        self._outside_source = source
 
     @property
     def hvac_action(self) -> HVACAction:
@@ -619,8 +673,8 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         """Keep the house from freezing when none of the TRVs can tell us anything anymore."""
         outside_temperature = self.current_outside_temperature
         active = self.areas.demand is None and outside_temperature is not None and (
-                outside_temperature < FROST_GUARD_OUTSIDE_TEMPERATURE or
-                (self._frost_guard_active and outside_temperature < FROST_GUARD_OUTSIDE_TEMPERATURE + FROST_GUARD_HYSTERESIS)
+                outside_temperature < self._frost_guard_outside_temperature or
+                (self._frost_guard_active and outside_temperature < self._frost_guard_outside_temperature + FROST_GUARD_HYSTERESIS)
         )
 
         if active == self._frost_guard_active:
@@ -629,7 +683,7 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self._frost_guard_active = active
 
         if active:
-            _LOGGER.warning("None of the TRVs is available and it's %.1f°C outside, heating for %.0f°C to protect against frost.", outside_temperature, FROST_GUARD_TARGET_TEMPERATURE)
+            _LOGGER.warning("None of the TRVs is available and it's %.1f°C outside, heating for %.1f°C to protect against frost.", outside_temperature, self._frost_guard_temperature)
         else:
             _LOGGER.warning("Frost guard is no longer needed.")
 

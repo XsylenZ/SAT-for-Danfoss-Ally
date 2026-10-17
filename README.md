@@ -21,14 +21,18 @@ The Danfoss Ally TRVs are the thermostats: you set the temperature of every room
 with Home Assistant schedules). This integration only decides when the boiler fires, and how hot.
 
 - **Setup** asks for the connection to the OpenTherm Gateway and the outside temperature, which
-  sets the base flow temperature through the heating curve. A local outdoor sensor is best; with
-  only a weather service, the boiler stays off while that service is unavailable.
+  sets the base flow temperature through the heating curve. A local outdoor sensor is best.
+- **Without the outside temperature**, the boiler keeps heating on the last known value (6 hours
+  by default), and then on an assumed one (5 °C by default). The TRVs keep every room at its target,
+  so this only changes how warm the water is. The `outside_temperature_source` attribute shows
+  which one is used. This can be turned off, then the boiler stays off until it is back.
 - **The heating switch** (`switch.<name>`) turns the control of the boiler on and off. There is no
   target temperature of its own: the flow temperature follows the target of the TRV that is
   currently driving the boiler.
 - **Frost guard**: when none of the TRVs is available, and it is below 3 °C outside, the boiler
   heats as if the house wants 10 °C. With a typical heating curve coefficient, this only makes the
-  boiler fire when it really freezes.
+  boiler fire when it really freezes; 15 °C fires it from around -2 °C outside. Both values are in
+  the System Configuration options.
 
 Entities that help to see what is going on:
 

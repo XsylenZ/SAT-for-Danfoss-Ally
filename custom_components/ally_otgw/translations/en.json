@@ -219,12 +219,22 @@
         "data": {
           "cycles_per_hour": "Duty Cycles per hour",
           "automatic_duty_cycle": "Automatic duty cycle",
-          "sensor_max_value_age": "Temperature Sensor maximum value age"
+          "sensor_max_value_age": "Temperature Sensor maximum value age",
+          "frost_guard_temperature": "Frost guard: temperature",
+          "frost_guard_outside_temperature": "Frost guard: below outside temperature",
+          "outside_temperature_fallback": "Keep heating without outside temperature",
+          "outside_temperature_fallback_hours": "Use the last known outside temperature for",
+          "outside_temperature_fallback_temperature": "Then assume an outside temperature of"
         },
         "data_description": {
           "cycles_per_hour": "The maximum number of burner cycles per hour while Pulse Width Modulation (PWM) is running. This does not turn PWM on or off.",
           "automatic_duty_cycle": "How Pulse Width Modulation (PWM) times its on/off cycles. On: Ally OTGW picks the timing itself, limited by Duty Cycles per hour. Off: one fixed cycle of Maximum Duty Cycle (General) is split into on and off time. This does not turn PWM on or off: PWM runs whenever the requested flow temperature is below the Overshoot Protection Value.",
-          "sensor_max_value_age": "The maximum age of the temperature sensor value before considering it as a stall."
+          "sensor_max_value_age": "The maximum age of the temperature sensor value before considering it as a stall.",
+          "frost_guard_temperature": "When none of the TRVs is available, the boiler heats as if the house wants this temperature. With a typical heating curve, 10 °C only fires the boiler when it freezes hard; 15 °C from around -2 °C outside.",
+          "frost_guard_outside_temperature": "The frost guard only works below this outside temperature.",
+          "outside_temperature_fallback": "When the outside temperature is missing, keep heating on the last known value, and then on an assumed one. The TRVs keep every room at its target, so this only changes how warm the water is. Off: the boiler stays off until the outside temperature is back.",
+          "outside_temperature_fallback_hours": "How long the last known outside temperature is used. 0 goes to the assumed temperature right away.",
+          "outside_temperature_fallback_temperature": "The outside temperature that is assumed after that. Choose a cautious, rather cold value."
         },
         "description": "For fine-tuning and customization.",
         "title": "System Configuration"
