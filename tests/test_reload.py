@@ -29,12 +29,16 @@ async def test_changing_options_reloads_once(hass: HomeAssistant, entry: MockCon
 
     with patch.object(type(coordinator), "async_will_remove_from_hass", autospec=True) as disconnect:
         for overshoot_hold in (0.6, 0.7, 0.8):
-            hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_OVERSHOOT_HOLD: overshoot_hold})
+            # Change a setting the way the user does, through the options
+            result = await hass.config_entries.options.async_init(entry.entry_id)
+            result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "general"})
+            defaults = {str(key): key.default() for key in result["data_schema"].schema if callable(key.default)}
+            await hass.config_entries.options.async_configure(result["flow_id"], {**defaults, CONF_OVERSHOOT_HOLD: overshoot_hold})
             await hass.async_block_till_done()
 
-    # Every change reloads exactly once, with a single connection at a time
+    # Every change reloads exactly once, with a single connection at a time, without an update listener
     assert disconnect.call_count == 3
-    assert len(entry.update_listeners) == 1
+    assert len(entry.update_listeners) == 0
     assert entry.state is ConfigEntryState.LOADED
 
     # And we keep controlling with the new settings

@@ -54,9 +54,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Register the services
     await async_register_services(hass)
 
-    # Add an update listener for this entry
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
     return True
 
 
@@ -79,17 +76,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unloaded
-
-
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """
-    Reload config entry.
-
-    This function is called by Home Assistant when the integration configuration is updated.
-    """
-    # Let Home Assistant reload the entry, so the unload callbacks (like this update listener) run as well.
-    # An update listener has to schedule the reload, waiting for it from here is no longer allowed.
-    hass.config_entries.async_schedule_reload(entry.entry_id)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -138,6 +138,8 @@ Changing any setting reloads the integration; no restart of Home Assistant is ne
 
 ## Installation
 
+Requires Home Assistant 2025.8 or newer.
+
 1. In HACS, add this repository as a custom repository of type **Integration**.
 2. Download **Danfoss Ally OTGW** and restart Home Assistant.
 3. Add the integration under **Settings → Devices & services**: the gateway connection, the
