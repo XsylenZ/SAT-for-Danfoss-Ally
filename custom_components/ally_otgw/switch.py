@@ -180,7 +180,6 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
             self._control_heating_loop_unsub()
             self._control_heating_loop_unsub = None
 
-        await self._async_restore_heat_available()
         await super().async_will_remove_from_hass()
 
     async def _register_event_listeners(self, _time: Optional[datetime] = None):

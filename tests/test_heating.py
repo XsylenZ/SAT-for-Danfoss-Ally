@@ -566,3 +566,40 @@ async def test_without_boiler_mode_heat_stays_available(hass: HomeAssistant, ent
     await heating.async_control_heating_loop()
 
     assert told == [("turn_on", "switch.radiator_1_heat_available")]
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(**{CONF_ZONES: [{**ZONE[0], CONF_ZONE_BOILER_MODE: True}]}))
+async def test_boiler_mode_is_left_alone_on_a_reload_and_undone_on_removal(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    from homeassistant.helpers import entity_registry
+
+    await add_trv(hass, "Woonkamer", "radiator_1")
+    device_id = entity_registry.async_get(hass).async_get("climate.radiator_1").device_id
+    entity_registry.async_get(hass).async_get_or_create("switch", "mqtt", "0xradiator_1_heat_available_zigbee2mqtt", suggested_object_id="radiator_1_heat_available", device_id=device_id)
+    await hass.async_block_till_done()
+
+    set_trv(hass, 21.0, 20.0, "idle")
+    await heating.async_turn_on()
+    await heating.async_control_heating_loop()
+
+    told = []
+
+    async def tell(call) -> None:
+        told.append((call.service, call.data["entity_id"]))
+        hass.states.async_set(call.data["entity_id"], "on" if call.service == "turn_on" else "off")
+
+    hass.services.async_register("switch", "turn_on", tell)
+    hass.services.async_register("switch", "turn_off", tell)
+
+    # The TRV already heard no heat is available
+    hass.states.async_set("switch.radiator_1_heat_available", "off")
+
+    # Changing a setting reloads the integration, which shouldn't make the TRV switch back and forth
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    await hass.data[DOMAIN][entry.entry_id][CLIMATE].async_control_heating_loop()
+    assert told == []
+
+    # Removing the integration gives it the factory default back
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert told == [("turn_on", "switch.radiator_1_heat_available")]

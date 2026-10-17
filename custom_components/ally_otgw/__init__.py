@@ -1,7 +1,7 @@
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import Platform, ATTR_ENTITY_ID, SERVICE_TURN_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry
 from homeassistant.helpers.storage import Store
@@ -14,10 +14,13 @@ from .const import (
     CONF_DEVICE,
     SERVICE_RESET_INTEGRAL,
     SERVICE_PULSE_WIDTH_MODULATION,
+    CONF_ZONES,
+    CONF_ZONE_AREA,
 )
 from .coordinator import SatDataUpdateCoordinatorFactory
 from .services import async_register_services
 from .switch import SatHeating
+from .zones import discover_trvs
 from .util import get_climate_entities
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
@@ -76,6 +79,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle removal of the integration: the TRVs we told no heat was available get the factory default back.
+
+    Not on every unload, a reload would only make the TRVs switch back and forth.
+    """
+    for zone in entry.options.get(CONF_ZONES) or []:
+        for trv in discover_trvs(hass, zone[CONF_ZONE_AREA]):
+            if trv.heat_available is None or (state := hass.states.get(trv.heat_available)) is None or state.state != "off":
+                continue
+
+            try:
+                await hass.services.async_call("switch", SERVICE_TURN_ON, {ATTR_ENTITY_ID: trv.heat_available}, blocking=True)
+            except Exception as exception:
+                _LOGGER.warning("Could not tell %s heat is available again: %s", trv.heat_available, exception)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
