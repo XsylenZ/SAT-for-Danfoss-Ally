@@ -9,6 +9,7 @@ from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry
+from homeassistant.util import dt
 
 from .const import *
 from .helpers import float_value
@@ -91,6 +92,8 @@ class Zone:
         self.minimum_open: int = int(settings[CONF_ZONE_MINIMUM_OPEN])
         self.minimum_demand: float = float(settings[CONF_ZONE_MINIMUM_DEMAND])
         self.maximum_wait: float = float(settings[CONF_ZONE_MAXIMUM_WAIT]) * 60
+        self.load_balancing: bool = bool(settings[CONF_ZONE_LOAD_BALANCING])
+        self.load_room_mean: int | None = None
 
         self.trvs: list[Trv] = []
         self.calling: bool = False
@@ -144,7 +147,56 @@ class Zone:
             "trvs": [trv.climate for trv in self.trvs],
             "heating": self.heating,
             "opening": round(self.opening, 1),
+            "load_balancing": self.load_balancing,
+            "load_room_mean": self.load_room_mean,
         }
+
+    def load_balance(self, areas: dict[str, "Area"], hass: HomeAssistant) -> dict[str, int]:
+        """Return the load room mean to write to the TRVs of this zone, only where it differs from what they have.
+
+        With load balancing, the TRVs of a room share the mean of their load estimates, so they divide the work instead of
+        each regulating on its own. Without it, or without enough TRVs to share with, they get "undefined" again.
+        """
+        trvs = [trv for trv in self.trvs if trv.load_room_mean is not None and areas[trv.climate].available]
+
+        estimates = [estimate for trv in trvs if (estimate := load_estimate(hass, trv)) is not None] if self.load_balancing else []
+        mean = round(sum(estimates) / len(estimates)) if len(estimates) >= 2 else LOAD_UNDEFINED
+        self.load_room_mean = mean if mean != LOAD_UNDEFINED else None
+
+        writes = {}
+        for trv in trvs:
+            if (state := hass.states.get(trv.load_room_mean)) is None or (current := float_value(state.state)) is None:
+                continue
+
+            if round(current) != mean:
+                writes[trv.load_room_mean] = mean
+
+        return writes
+
+
+def load_estimate(hass: HomeAssistant | None, trv: Trv) -> int | None:
+    """Return the load estimate of the TRV, when it reported a real and recent one."""
+    if hass is None or trv.load_estimate is None or (state := hass.states.get(trv.load_estimate)) is None:
+        return None
+
+    if (value := float_value(state.state)) is None or value == LOAD_UNDEFINED:
+        return None
+
+    if (dt.utcnow() - state.last_reported).total_seconds() > AREA_STATE_MAX_AGE:
+        return None
+
+    return round(value)
+
+
+def load_room_mean(hass: HomeAssistant | None, trv: Trv) -> int | None:
+    """Return the load room mean the TRV currently has, or None when it is undefined."""
+    if hass is None or trv.load_room_mean is None or (state := hass.states.get(trv.load_room_mean)) is None:
+        return None
+
+    if (value := float_value(state.state)) is None or value == LOAD_UNDEFINED:
+        return None
+
+    return round(value)
 
 
 def opening(hass: HomeAssistant | None, trv: Trv) -> float:

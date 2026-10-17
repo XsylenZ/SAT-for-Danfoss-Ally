@@ -17,7 +17,7 @@ from .util import (
     create_pid_controller,
     create_heating_curve_controller,
 )
-from .zones import Trv, Zone, discover_trvs, opening
+from .zones import Trv, Zone, discover_trvs, opening, load_estimate, load_room_mean
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -264,6 +264,8 @@ class Areas:
                 "current_temperature": state.attributes.get("current_temperature") if state is not None else None,
                 "target_temperature": state.attributes.get("temperature") if state is not None else None,
                 "opening": opening(self._hass, trv),
+                "load_estimate": load_estimate(self._hass, trv),
+                "load_room_mean": load_room_mean(self._hass, trv),
             })
 
         return result
@@ -272,6 +274,13 @@ class Areas:
         """Determine which zones are calling for heat."""
         for zone in self._zones:
             zone.update(self._areas, self._hass)
+
+    def load_balance(self) -> dict[str, int]:
+        """Return the load room mean to write to every TRV that needs a new one."""
+        if self._hass is None:
+            return {}
+
+        return {entity_id: value for zone in self._zones for entity_id, value in zone.load_balance(self._areas, self._hass).items()}
 
     def target_temperature(self, entity_id: str) -> float | None:
         """Return the target temperature of the TRV with the given climate entity."""

@@ -39,7 +39,7 @@ Entities that help to see what is going on:
 | Entity | Shows |
 |---|---|
 | `switch.<name>` | On/off, and as attributes: the zones, `heat_demand`, `heat_allowed`, `frost_guard`, `failsafe`, PID and PWM state |
-| `sensor.danfoss_ally_trvs_<name>` | Every Danfoss Ally TRV found, its area, its zone (or none), its status, temperatures and valve opening |
+| `sensor.danfoss_ally_trvs_<name>` | Every Danfoss Ally TRV found, its area, its zone (or none), its status, temperatures, valve opening and load |
 | `binary_sensor.heat_demand` | Whether any zone is calling for heat |
 | `sensor.requested_setpoint_<name>` | The flow temperature that the heating curve and PID ask for |
 
@@ -84,8 +84,28 @@ The TRVs of a zone are found automatically: every Danfoss Ally (`014G2461`) devi
 Other climate devices in the same area, like air conditioning, are ignored. Adding, moving or
 removing a TRV in Home Assistant is picked up right away, without reconfiguring.
 
+### Load balancing
+
+A room with more than one TRV, like a living room with five radiators, works best when its TRVs
+share the work instead of each regulating on its own. Danfoss Ally TRVs support this: every TRV
+reports a `load_estimate`, and a gateway writes the mean of a room's estimates back to each of them
+as `load_room_mean`. Without a Danfoss gateway nobody does that, and the TRVs keep `-8000`
+("undefined").
+
+With **Load balancing** turned on for a zone, this integration plays that gateway:
+
+- Every interval (15 minutes by default, in System Configuration), it writes the mean of the load
+  estimates of the zone's TRVs to each of them, but only where the value changed.
+- TRVs that are unavailable, or whose estimate is unknown or older than an hour, are left out of
+  the mean. With fewer than two estimates left, the TRVs get "undefined" again and regulate on
+  their own. Turning load balancing off does the same.
+- It only writes while the heating switch is on.
+
+Load balancing is off by default, turn it on per zone in **Configure → Zones**.
+
 The `zones` attribute of the heating switch shows every zone, its TRVs, which of them are heating,
-their total valve opening and whether the zone is calling for heat.
+their total valve opening, whether the zone is calling for heat and its load room mean. The Danfoss
+Ally TRVs sensor shows the `load_estimate` and `load_room_mean` of every TRV.
 
 ## Settings
 
@@ -94,8 +114,8 @@ Changing any setting reloads the integration; no restart of Home Assistant is ne
 | Where | Settings |
 |---|---|
 | Configure → General | PID controller, maximum setpoint, heating curve coefficient, **Overshoot Hold** |
-| Configure → Zones | The zones and their settings |
-| Configure → System Configuration | Duty cycles, sensor age, **frost guard**, **outside temperature fallback** |
+| Configure → Zones | The zones and their settings, including **load balancing** |
+| Configure → System Configuration | Duty cycles, sensor age, **load balancing interval**, **frost guard**, **outside temperature fallback** |
 | Configure → Advanced Options | PWM, consumption, relative modulation, sample time |
 | ⋮ → Reconfigure | Gateway connection, outside temperature, overshoot protection value |
 

@@ -102,6 +102,11 @@ CONF_ZONE_MODE = "mode"
 CONF_ZONE_MINIMUM_OPEN = "minimum_open"
 CONF_ZONE_MINIMUM_DEMAND = "minimum_demand"
 CONF_ZONE_MAXIMUM_WAIT = "maximum_wait"
+CONF_ZONE_LOAD_BALANCING = "load_balancing"
+
+# Load balancing: the TRVs of a zone share the mean of their load estimates, written every interval (in minutes)
+CONF_LOAD_BALANCING_INTERVAL = "load_balancing_interval"
+LOAD_UNDEFINED = -8000
 
 ZONE_MODE_INDEPENDENT = "independent"
 ZONE_MODE_TOGETHER = "together"
@@ -111,6 +116,7 @@ ZONE_DEFAULTS = {
     CONF_ZONE_MINIMUM_OPEN: 2,
     CONF_ZONE_MINIMUM_DEMAND: 100,
     CONF_ZONE_MAXIMUM_WAIT: 30,
+    CONF_ZONE_LOAD_BALANCING: False,
 }
 
 # The radiator thermostats this integration works with
@@ -192,6 +198,7 @@ OPTIONS_DEFAULTS = {
     CONF_HEATING_CURVE_COEFFICIENT: 2.0,
     CONF_OVERSHOOT_HOLD: 0.5,
     CONF_ZONES: [],
+    CONF_LOAD_BALANCING_INTERVAL: 15,
     CONF_FROST_GUARD_TEMPERATURE: 10.0,
     CONF_FROST_GUARD_OUTSIDE_TEMPERATURE: 3.0,
     CONF_OUTSIDE_FALLBACK: True,

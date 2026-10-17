@@ -15,7 +15,7 @@ from custom_components.ally_otgw.zones import Trv, discover_trvs
 from tests.helpers import add_trv, move_trv
 from tests.test_area import create_areas, create_state
 
-TOGETHER = {CONF_ZONE_MODE: ZONE_MODE_TOGETHER, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30}
+TOGETHER = {CONF_ZONE_MODE: ZONE_MODE_TOGETHER, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False}
 
 LIVING_ROOM = ["climate.tv_hoek_r", "climate.tv_hoek_l", "climate.eetkamer_r"]
 
@@ -241,10 +241,12 @@ async def test_overview_of_all_trvs(hass: HomeAssistant, entry: MockConfigEntry,
         {
             "entity_id": "climate.tv_hoek_r", "name": "tv hoek r", "area": "Woonkamer", "zone": "Woonkamer",
             "status": "heating", "current_temperature": 19.5, "target_temperature": 20.0, "opening": 35.0,
+            "load_estimate": None, "load_room_mean": None,
         },
         {
             "entity_id": "climate.werkkamer", "name": "climate.werkkamer", "area": "Werkkamer", "zone": None,
             "status": "unavailable", "current_temperature": None, "target_temperature": None, "opening": 0.0,
+            "load_estimate": None, "load_room_mean": None,
         },
     ]
 
@@ -322,7 +324,7 @@ async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, heat
 
     assert entry.options[CONF_ZONES] == [
         {CONF_ZONE_AREA: "woonkamer", **TOGETHER, CONF_ZONE_MINIMUM_OPEN: 3},
-        {CONF_ZONE_AREA: "werkkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30},
+        {CONF_ZONE_AREA: "werkkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False},
     ]
 
     # Removing a zone keeps the settings of the others

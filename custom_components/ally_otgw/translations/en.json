@@ -224,7 +224,8 @@
           "frost_guard_outside_temperature": "Frost guard: below outside temperature",
           "outside_temperature_fallback": "Keep heating without outside temperature",
           "outside_temperature_fallback_hours": "Use the last known outside temperature for",
-          "outside_temperature_fallback_temperature": "Then assume an outside temperature of"
+          "outside_temperature_fallback_temperature": "Then assume an outside temperature of",
+          "load_balancing_interval": "Load balancing interval"
         },
         "data_description": {
           "cycles_per_hour": "The maximum number of burner cycles per hour while Pulse Width Modulation (PWM) is running. This does not turn PWM on or off.",
@@ -234,7 +235,8 @@
           "frost_guard_outside_temperature": "The frost guard only works below this outside temperature.",
           "outside_temperature_fallback": "When the outside temperature is missing, keep heating on the last known value, and then on an assumed one. The TRVs keep every room at its target, so this only changes how warm the water is. Off: the boiler stays off until the outside temperature is back.",
           "outside_temperature_fallback_hours": "How long the last known outside temperature is used. 0 goes to the assumed temperature right away.",
-          "outside_temperature_fallback_temperature": "The outside temperature that is assumed after that. Choose a cautious, rather cold value."
+          "outside_temperature_fallback_temperature": "The outside temperature that is assumed after that. Choose a cautious, rather cold value.",
+          "load_balancing_interval": "How often the load room mean is written to the TRVs of zones with load balancing."
         },
         "description": "For fine-tuning and customization.",
         "title": "System Configuration"
@@ -253,13 +255,15 @@
           "mode": "Heats",
           "minimum_open": "Minimum TRVs asking for heat",
           "minimum_demand": "Or minimum total valve opening",
-          "maximum_wait": "Never wait longer than"
+          "maximum_wait": "Never wait longer than",
+          "load_balancing": "Load balancing"
         },
         "data_description": {
           "mode": "How the TRVs in this zone call for heat.",
           "minimum_open": "Together only: the zone calls for heat once this many of its TRVs ask for heat.",
           "minimum_demand": "Together only: or once the valve openings (pi_heating_demand) of the TRVs asking for heat add up to this. 0 disables this rule.",
-          "maximum_wait": "Together only: a TRV asking for heat on its own gets heat after this time anyway."
+          "maximum_wait": "Together only: a TRV asking for heat on its own gets heat after this time anyway.",
+          "load_balancing": "Let the TRVs of this zone share their load: every interval, the mean of their load estimates is written to each of them as load_room_mean, like a Danfoss gateway does. Useful for rooms with more than one TRV. Turning it off sets them back to undefined."
         }
       },
       "zone_areas": {

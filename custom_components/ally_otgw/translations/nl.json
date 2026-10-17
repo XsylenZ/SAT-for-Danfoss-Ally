@@ -217,7 +217,8 @@
           "frost_guard_outside_temperature": "Vorstbeveiliging: onder buitentemperatuur",
           "outside_temperature_fallback": "Blijven verwarmen zonder buitentemperatuur",
           "outside_temperature_fallback_hours": "Laatst bekende buitentemperatuur gebruiken gedurende",
-          "outside_temperature_fallback_temperature": "Daarna uitgaan van een buitentemperatuur van"
+          "outside_temperature_fallback_temperature": "Daarna uitgaan van een buitentemperatuur van",
+          "load_balancing_interval": "Interval lastverdeling"
         },
         "data_description": {
           "automatic_duty_cycle": "Hoe Pulsbreedtemodulatie (PWM) de aan/uit-cycli timet. Aan: Ally OTGW bepaalt de timing zelf, begrensd door Inschakelcycli per uur. Uit: één vaste cyclus van Maximale Inschakelduur (Algemeen) wordt verdeeld in aan- en uittijd. Dit zet PWM niet aan of uit: PWM draait zodra de gevraagde aanvoertemperatuur onder de Overshoot Beschermingswaarde ligt.",
@@ -227,7 +228,8 @@
           "frost_guard_outside_temperature": "De vorstbeveiliging werkt alleen onder deze buitentemperatuur.",
           "outside_temperature_fallback": "Als de buitentemperatuur ontbreekt, blijven verwarmen op de laatst bekende waarde, en daarna op een aangenomen waarde. De kranen houden elke kamer op temperatuur, dit verandert alleen hoe warm het water is. Uit: de ketel blijft uit tot de buitentemperatuur terug is.",
           "outside_temperature_fallback_hours": "Hoe lang de laatst bekende buitentemperatuur gebruikt wordt. 0 gaat meteen naar de aangenomen temperatuur.",
-          "outside_temperature_fallback_temperature": "De buitentemperatuur waarvan daarna wordt uitgegaan. Kies een voorzichtige, eerder koude waarde."
+          "outside_temperature_fallback_temperature": "De buitentemperatuur waarvan daarna wordt uitgegaan. Kies een voorzichtige, eerder koude waarde.",
+          "load_balancing_interval": "Hoe vaak de load_room_mean naar de kranen van zones met lastverdeling wordt geschreven."
         },
         "description": "Voor fijnafstelling en aanpassing.",
         "title": "Systeemconfiguratie"
@@ -246,13 +248,15 @@
           "mode": "Verwarmt",
           "minimum_open": "Minimaal aantal kranen dat om warmte vraagt",
           "minimum_demand": "Of minimale totale klepopening",
-          "maximum_wait": "Nooit langer wachten dan"
+          "maximum_wait": "Nooit langer wachten dan",
+          "load_balancing": "Lastverdeling"
         },
         "data_description": {
           "mode": "Hoe de kranen in deze zone om warmte vragen.",
           "minimum_open": "Alleen bij Samen: de zone vraagt om warmte zodra zoveel van haar kranen om warmte vragen.",
           "minimum_demand": "Alleen bij Samen: of zodra de klepopeningen (pi_heating_demand) van de kranen die om warmte vragen samen dit halen. 0 schakelt deze regel uit.",
-          "maximum_wait": "Alleen bij Samen: een kraan die in zijn eentje om warmte vraagt, krijgt na deze tijd toch warmte."
+          "maximum_wait": "Alleen bij Samen: een kraan die in zijn eentje om warmte vraagt, krijgt na deze tijd toch warmte.",
+          "load_balancing": "Laat de kranen van deze zone hun last verdelen: elke interval wordt het gemiddelde van hun lastschattingen als load_room_mean naar elke kraan geschreven, zoals een Danfoss-gateway doet. Handig voor ruimtes met meer dan één kraan. Uitzetten zet ze weer op onbepaald."
         }
       },
       "zone_areas": {

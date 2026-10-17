@@ -38,12 +38,14 @@ ZONE_TEXTS = {
         "areas": "Add or remove zones", "save": "Save and close",
         "rules": " (at least {minimum_open} TRVs or {minimum_demand}% open, at most {maximum_wait} min waiting)",
         "none": "No zones yet, choose *Add or remove zones*.", "no_trvs": "no Danfoss Ally TRVs found in this area",
+        "load_balancing": ", load balancing",
     },
     "nl": {
         "independent": "Zelfstandig", "together": "Samen",
         "areas": "Zones toevoegen of verwijderen", "save": "Opslaan en sluiten",
         "rules": " (minstens {minimum_open} kranen of {minimum_demand}% open, hooguit {maximum_wait} min wachten)",
         "none": "Nog geen zones, kies *Zones toevoegen of verwijderen*.", "no_trvs": "geen Danfoss Ally-kranen gevonden in deze ruimte",
+        "load_balancing": ", lastverdeling",
     },
 }
 
@@ -676,6 +678,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Required(CONF_ZONE_MAXIMUM_WAIT, default=settings[CONF_ZONE_MAXIMUM_WAIT]): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=0, max=240, step=5, unit_of_measurement="min")
                 ),
+                vol.Required(CONF_ZONE_LOAD_BALANCING, default=settings[CONF_ZONE_LOAD_BALANCING]): bool,
             })
         )
 
@@ -707,6 +710,9 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
                 minimum_demand=int(settings[CONF_ZONE_MINIMUM_DEMAND]),
                 maximum_wait=int(settings[CONF_ZONE_MAXIMUM_WAIT]),
             )
+
+        if settings[CONF_ZONE_LOAD_BALANCING]:
+            line += texts["load_balancing"]
 
         return line + f"\n  {', '.join(trvs) or texts['no_trvs']}"
 
@@ -799,6 +805,10 @@ class SatOptionsFlowHandler(config_entries.OptionsFlow):
             )
 
         schema[vol.Required(CONF_SENSOR_MAX_VALUE_AGE, default=options[CONF_SENSOR_MAX_VALUE_AGE])] = selector.TimeSelector()
+
+        schema[vol.Required(CONF_LOAD_BALANCING_INTERVAL, default=options[CONF_LOAD_BALANCING_INTERVAL])] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=5, max=60, step=5, unit_of_measurement="min")
+        )
 
         schema[vol.Required(CONF_FROST_GUARD_TEMPERATURE, default=options[CONF_FROST_GUARD_TEMPERATURE])] = selector.NumberSelector(
             selector.NumberSelectorConfig(min=5, max=18, step=0.5, unit_of_measurement="°C")

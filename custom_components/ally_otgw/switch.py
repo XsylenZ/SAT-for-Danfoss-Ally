@@ -8,9 +8,10 @@ from typing import Optional, Callable, Any
 
 from homeassistant.components import sensor, weather
 from homeassistant.components.climate import HVACAction
+from homeassistant.components.number import DOMAIN as NUMBER_DOMAIN, SERVICE_SET_VALUE, ATTR_VALUE
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, STATE_ON, EVENT_HOMEASSISTANT_STARTED
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, STATE_ON, EVENT_HOMEASSISTANT_STARTED, ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall, Event, CoreState, EventStateChangedData, HassJob, callback
 from homeassistant.helpers import device_registry, entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -93,6 +94,8 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self._minimum_setpoint_version = int(config_options.get(CONF_DYNAMIC_MINIMUM_SETPOINT_VERSION))
         self._force_pulse_width_modulation = bool(config_options.get(CONF_FORCE_PULSE_WIDTH_MODULATION))
         self._sensor_max_value_age = convert_time_str_to_seconds(config_options.get(CONF_SENSOR_MAX_VALUE_AGE))
+
+        self._load_balancing_interval = timedelta(minutes=float(config_options.get(CONF_LOAD_BALANCING_INTERVAL)))
 
         self._frost_guard_temperature = float(config_options.get(CONF_FROST_GUARD_TEMPERATURE))
         self._frost_guard_outside_temperature = float(config_options.get(CONF_FROST_GUARD_OUTSIDE_TEMPERATURE))
@@ -182,6 +185,14 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_track_coordinator_data)
         )
+
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass, self.async_balance_loads, self._load_balancing_interval
+            )
+        )
+
+        await self.async_balance_loads()
 
         self.async_on_remove(
             async_track_state_change_event(
@@ -852,6 +863,22 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
 
         # If the setpoint is high, turn on the heater
         await self.async_set_heater_state(DeviceState.ON if self._setpoint is not None and self._setpoint > COLD_SETPOINT else DeviceState.OFF)
+
+        self.async_write_ha_state()
+
+    async def async_balance_loads(self, _time: Optional[datetime] = None) -> None:
+        """Let the TRVs of a zone share their load, by writing the mean of their load estimates to each of them."""
+        # Switched off, we leave the TRVs alone as well
+        if not self._is_on:
+            return
+
+        for entity_id, value in self.areas.load_balance().items():
+            _LOGGER.info("Writing load room mean %d to %s", value, entity_id)
+
+            try:
+                await self.hass.services.async_call(NUMBER_DOMAIN, SERVICE_SET_VALUE, {ATTR_ENTITY_ID: entity_id, ATTR_VALUE: value}, blocking=True)
+            except Exception as exception:
+                _LOGGER.warning("Could not write load room mean %d to %s: %s", value, entity_id, exception)
 
         self.async_write_ha_state()
 
