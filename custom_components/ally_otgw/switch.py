@@ -9,9 +9,9 @@ from typing import Optional, Callable, Any
 from homeassistant.components import sensor, weather
 from homeassistant.components.climate import HVACAction
 from homeassistant.components.number import DOMAIN as NUMBER_DOMAIN, SERVICE_SET_VALUE, ATTR_VALUE
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.switch import SwitchEntity, DOMAIN as SWITCH_DOMAIN
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, STATE_ON, EVENT_HOMEASSISTANT_STARTED, ATTR_ENTITY_ID
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, STATE_ON, EVENT_HOMEASSISTANT_STARTED, ATTR_ENTITY_ID, SERVICE_TURN_ON, SERVICE_TURN_OFF
 from homeassistant.core import HomeAssistant, ServiceCall, Event, CoreState, EventStateChangedData, HassJob, callback
 from homeassistant.helpers import device_registry, entity_registry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -180,6 +180,7 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
             self._control_heating_loop_unsub()
             self._control_heating_loop_unsub = None
 
+        await self._async_restore_heat_available()
         await super().async_will_remove_from_hass()
 
     async def _register_event_listeners(self, _time: Optional[datetime] = None):
@@ -923,6 +924,9 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         heater_on = self.circulating or (self._setpoint is not None and self._setpoint > COLD_SETPOINT)
         await self.async_set_heater_state(DeviceState.ON if heater_on else DeviceState.OFF)
 
+        # Tell the TRVs of zones in boiler mode whether heat is on its way
+        await self.async_tell_heat_available(self._heat_allowed or self.circulating)
+
         self.async_write_ha_state()
 
     async def async_balance_loads(self, _time: Optional[datetime] = None) -> None:
@@ -940,6 +944,16 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
                 _LOGGER.warning("Could not write load room mean %d to %s: %s", value, entity_id, exception)
 
         self.async_write_ha_state()
+
+    async def async_tell_heat_available(self, supplying: bool) -> None:
+        """Write "heat available" to the TRVs that need to hear something else than they know."""
+        for entity_id, available in self.areas.heat_available(supplying).items():
+            _LOGGER.info("Telling %s heat is %savailable", entity_id, "" if available else "not ")
+
+            try:
+                await self.hass.services.async_call(SWITCH_DOMAIN, SERVICE_TURN_ON if available else SERVICE_TURN_OFF, {ATTR_ENTITY_ID: entity_id}, blocking=True)
+            except Exception as exception:
+                _LOGGER.warning("Could not tell %s whether heat is available: %s", entity_id, exception)
 
     async def async_set_heater_state(self, state: DeviceState):
         """Set the heater state, ensuring proper conditions are met."""
@@ -966,6 +980,16 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         self._setpoint = MINIMUM_SETPOINT
         await self._coordinator.async_set_control_setpoint(MINIMUM_SETPOINT)
         await self.async_set_heater_state(DeviceState.OFF)
+
+        # We no longer tell the TRVs anything, so they get the factory default back: heat is available
+        await self._async_restore_heat_available()
+
+    async def _async_restore_heat_available(self) -> None:
+        for entity_id in self.areas.heat_available(True):
+            try:
+                await self.hass.services.async_call(SWITCH_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: entity_id}, blocking=True)
+            except Exception as exception:
+                _LOGGER.warning("Could not tell %s heat is available again: %s", entity_id, exception)
 
     async def _async_set_on(self, is_on: bool) -> None:
         self._is_on = is_on

@@ -39,6 +39,7 @@ ZONE_TEXTS = {
         "rules": " (at least {minimum_open} TRVs or {minimum_demand}% open, at most {maximum_wait} min waiting)",
         "none": "No zones yet, choose *Add or remove zones*.", "no_trvs": "no Danfoss Ally TRVs found in this area",
         "load_balancing": ", load balancing",
+        "boiler_mode": ", boiler mode",
         "minimum_opening": ", from {minimum_opening}% valve opening",
         "minimum_difference": ", from {minimum_difference:g} °C below target",
     },
@@ -48,6 +49,7 @@ ZONE_TEXTS = {
         "rules": " (minstens {minimum_open} kranen of {minimum_demand}% open, hooguit {maximum_wait} min wachten)",
         "none": "Nog geen zones, kies *Zones toevoegen of verwijderen*.", "no_trvs": "geen Danfoss Ally-kranen gevonden in deze ruimte",
         "load_balancing": ", lastverdeling",
+        "boiler_mode": ", ketelmodus",
         "minimum_opening": ", vanaf {minimum_opening}% klepopening",
         "minimum_difference": ", vanaf {minimum_difference:g} °C onder doel",
     },
@@ -689,6 +691,7 @@ class SatOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                     selector.NumberSelectorConfig(min=0, max=240, step=5, unit_of_measurement="min")
                 ),
                 vol.Required(CONF_ZONE_LOAD_BALANCING, default=settings[CONF_ZONE_LOAD_BALANCING]): bool,
+                vol.Required(CONF_ZONE_BOILER_MODE, default=settings[CONF_ZONE_BOILER_MODE]): bool,
             })
         )
 
@@ -728,6 +731,9 @@ class SatOptionsFlowHandler(config_entries.OptionsFlowWithReload):
 
         if settings[CONF_ZONE_LOAD_BALANCING]:
             line += texts["load_balancing"]
+
+        if settings[CONF_ZONE_BOILER_MODE]:
+            line += texts["boiler_mode"]
 
         return line + f"\n  {', '.join(trvs) or texts['no_trvs']}"
 

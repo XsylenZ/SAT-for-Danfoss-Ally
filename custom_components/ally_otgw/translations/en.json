@@ -264,7 +264,8 @@
           "maximum_wait": "Never wait longer than",
           "load_balancing": "Load balancing",
           "minimum_opening": "Minimum valve opening",
-          "minimum_difference": "Minimum temperature difference"
+          "minimum_difference": "Minimum temperature difference",
+          "boiler_mode": "Boiler mode"
         },
         "data_description": {
           "mode": "How the TRVs in this zone call for heat.",
@@ -273,7 +274,8 @@
           "maximum_wait": "Together only: a TRV asking for heat on its own gets heat after this time anyway.",
           "load_balancing": "Let the TRVs of this zone share their load: every interval, the mean of their load estimates is written to each of them as load_room_mean, like a Danfoss gateway does. Useful for rooms with more than one TRV. Turning it off sets them back to undefined.",
           "minimum_opening": "A TRV only asks for heat when its valve (pi_heating_demand) is at least this far open. A nearly closed valve hardly lets any water through, firing the boiler for it only makes it overshoot. Once asking, it keeps asking until 5% below this. 0 turns it off.",
-          "minimum_difference": "A TRV only starts asking for heat when its room is at least this far below its target. A room a tenth of a degree below its target has reached it in practice. Once asking, it keeps asking until the TRV is satisfied, so the room does reach its target. 0 turns it off."
+          "minimum_difference": "A TRV only starts asking for heat when its room is at least this far below its target. A room a tenth of a degree below its target has reached it in practice. Once asking, it keeps asking until the TRV is satisfied, so the room does reach its target. 0 turns it off.",
+          "boiler_mode": "Tell the TRVs of this zone whether the boiler is supplying heat (heat_available), like a Danfoss gateway does. That puts them in their boiler mode, for a heat source that switches on and off, and they don't move their motor while no heat is coming. Turning it off tells them heat is available again, the factory default."
         }
       },
       "zone_areas": {

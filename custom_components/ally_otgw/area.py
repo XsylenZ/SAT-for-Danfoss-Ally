@@ -291,6 +291,7 @@ class Areas:
                 "opening": opening(self._hass, trv),
                 "load_estimate": load_estimate(self._hass, trv),
                 "load_room_mean": load_room_mean(self._hass, trv),
+                "heat_available": state.state if trv.heat_available and (state := self._hass.states.get(trv.heat_available)) is not None else None,
             })
 
         return result
@@ -299,6 +300,31 @@ class Areas:
         """Determine which zones are calling for heat."""
         for zone in self._zones:
             zone.update(self._areas, self._hass)
+
+    def heat_available(self, supplying: bool) -> dict[str, bool]:
+        """Return what to tell the TRVs whose "heat available" differs from it.
+
+        Like a Danfoss gateway, the TRVs of zones in boiler mode hear whether the boiler is supplying heat, which puts them in
+        their boiler mode. Every other TRV, and every TRV while we don't control the boiler, gets the factory default back:
+        heat is available.
+        """
+        if self._hass is None:
+            return {}
+
+        writes = {}
+        for zone in self._zones:
+            for trv in zone.trvs:
+                if trv.heat_available is None or not self._areas[trv.climate].available:
+                    continue
+
+                if (state := self._hass.states.get(trv.heat_available)) is None or state.state not in ("on", "off"):
+                    continue
+
+                available = supplying if zone.boiler_mode else True
+                if (state.state == "on") != available:
+                    writes[trv.heat_available] = available
+
+        return writes
 
     def load_balance(self) -> dict[str, int]:
         """Return the load room mean to write to every TRV that needs a new one."""

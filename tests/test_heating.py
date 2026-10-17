@@ -497,3 +497,72 @@ async def test_does_not_circulate_unless_turned_on(hass: HomeAssistant, entry: M
 
         assert not heating.circulating
         assert not coordinator.device_active
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(**{CONF_ZONES: [{**ZONE[0], CONF_ZONE_BOILER_MODE: True}]}))
+async def test_boiler_mode_tells_the_trvs_whether_heat_is_available(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    from homeassistant.helpers import entity_registry
+
+    await add_trv(hass, "Woonkamer", "radiator_1")
+    device_id = entity_registry.async_get(hass).async_get("climate.radiator_1").device_id
+    entity_registry.async_get(hass).async_get_or_create("switch", "mqtt", "0xradiator_1_heat_available_zigbee2mqtt", suggested_object_id="radiator_1_heat_available", device_id=device_id)
+    await hass.async_block_till_done()
+
+    told = []
+
+    async def tell(call) -> None:
+        told.append((call.service, call.data["entity_id"]))
+        hass.states.async_set(call.data["entity_id"], "on" if call.service == "turn_on" else "off")
+
+    hass.services.async_register("switch", "turn_on", tell)
+    hass.services.async_register("switch", "turn_off", tell)
+    hass.states.async_set("switch.radiator_1_heat_available", "on")
+
+    await coordinator.async_set_boiler_temperature(57)
+    await heating.async_turn_on()
+
+    # Nobody wants heat: the TRV hears no heat is coming, once
+    set_trv(hass, 21.0, 20.0, "idle")
+    await heating.async_control_heating_loop()
+    await heating.async_control_heating_loop()
+    assert told == [("turn_off", "switch.radiator_1_heat_available")]
+
+    # The room calls for heat and the boiler fires: heat is available
+    told.clear()
+    set_trv(hass, 19.0, 20.0, "heating")
+    await heating.async_control_heating_loop()
+    assert told == [("turn_on", "switch.radiator_1_heat_available")]
+
+    # Switched off, the TRV gets the factory default back
+    hass.states.async_set("switch.radiator_1_heat_available", "off")
+    told.clear()
+    await heating.async_turn_off()
+    assert told == [("turn_on", "switch.radiator_1_heat_available")]
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup())
+async def test_without_boiler_mode_heat_stays_available(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    from homeassistant.helpers import entity_registry
+
+    await add_trv(hass, "Woonkamer", "radiator_1")
+    device_id = entity_registry.async_get(hass).async_get("climate.radiator_1").device_id
+    entity_registry.async_get(hass).async_get_or_create("switch", "mqtt", "0xradiator_1_heat_available_zigbee2mqtt", suggested_object_id="radiator_1_heat_available", device_id=device_id)
+    await hass.async_block_till_done()
+
+    told = []
+
+    async def tell(call) -> None:
+        told.append((call.service, call.data["entity_id"]))
+        hass.states.async_set(call.data["entity_id"], "on" if call.service == "turn_on" else "off")
+
+    hass.services.async_register("switch", "turn_on", tell)
+    hass.services.async_register("switch", "turn_off", tell)
+
+    # Left in boiler mode from before: it hears heat is available again, and nothing else
+    hass.states.async_set("switch.radiator_1_heat_available", "off")
+    set_trv(hass, 21.0, 20.0, "idle")
+    await heating.async_turn_on()
+    await heating.async_control_heating_loop()
+    await heating.async_control_heating_loop()
+
+    assert told == [("turn_on", "switch.radiator_1_heat_available")]

@@ -121,6 +121,20 @@ With **Load balancing** turned on for a zone, this integration plays that gatewa
 
 Load balancing is off by default, turn it on per zone in **Configure → Zones**.
 
+### Boiler mode
+
+A Danfoss gateway also tells its TRVs whether heat is available (`heat_available`). Without a
+gateway nobody does, so the TRVs assume warm water is always there, like with district heating:
+when the boiler is off, a TRV just below its target keeps opening its valve, waiting for heat that
+isn't coming. Once it hears that no heat is available, a Danfoss Ally switches to its boiler mode
+for 48 hours, meant for a heat source that switches on and off, and doesn't move its motor while no
+heat is coming.
+
+With **Boiler mode** turned on for a zone, this integration tells its TRVs that heat is available
+while the boiler is heating or circulating, and that it isn't as soon as it stops, only when that
+changes. Every other TRV, and every TRV while the heating switch is off or the integration is
+removed, is told heat is available again: the factory default. Off by default.
+
 The `zones` attribute of the heating switch shows every zone, its TRVs, which of them are heating,
 their total valve opening, whether the zone is calling for heat and its load room mean. The Danfoss
 Ally TRVs sensor shows the `load_estimate` and `load_room_mean` of every TRV.

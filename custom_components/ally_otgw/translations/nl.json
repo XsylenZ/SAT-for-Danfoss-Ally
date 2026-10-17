@@ -257,7 +257,8 @@
           "maximum_wait": "Nooit langer wachten dan",
           "load_balancing": "Lastverdeling",
           "minimum_opening": "Minimale klepopening",
-          "minimum_difference": "Minimaal temperatuurverschil"
+          "minimum_difference": "Minimaal temperatuurverschil",
+          "boiler_mode": "Ketelmodus"
         },
         "data_description": {
           "mode": "Hoe de kranen in deze zone om warmte vragen.",
@@ -266,7 +267,8 @@
           "maximum_wait": "Alleen bij Samen: een kraan die in zijn eentje om warmte vraagt, krijgt na deze tijd toch warmte.",
           "load_balancing": "Laat de kranen van deze zone hun last verdelen: elke interval wordt het gemiddelde van hun lastschattingen als load_room_mean naar elke kraan geschreven, zoals een Danfoss-gateway doet. Handig voor ruimtes met meer dan één kraan. Uitzetten zet ze weer op onbepaald.",
           "minimum_opening": "Een kraan vraagt pas om warmte als zijn klep (pi_heating_demand) minstens zo ver open staat. Een bijna dichte klep laat nauwelijks water door, de ketel daarvoor laten branden laat hem alleen doorschieten. Eenmaal vragend blijft hij vragen tot 5% hieronder. 0 schakelt dit uit.",
-          "minimum_difference": "Een kraan begint pas om warmte te vragen als zijn ruimte minstens zoveel onder het doel zit. Een ruimte een tiende graad onder het doel heeft het in de praktijk bereikt. Eenmaal vragend blijft hij vragen tot de kraan tevreden is, zodat de ruimte het doel wel haalt. 0 schakelt dit uit."
+          "minimum_difference": "Een kraan begint pas om warmte te vragen als zijn ruimte minstens zoveel onder het doel zit. Een ruimte een tiende graad onder het doel heeft het in de praktijk bereikt. Eenmaal vragend blijft hij vragen tot de kraan tevreden is, zodat de ruimte het doel wel haalt. 0 schakelt dit uit.",
+          "boiler_mode": "Vertel de kranen van deze zone of de ketel warmte levert (heat_available), zoals een Danfoss-gateway doet. Daarmee gaan ze in hun ketelmodus, voor een warmtebron die aan en uit gaat, en bewegen ze hun motor niet zolang er geen warmte komt. Uitzetten vertelt ze weer dat er warmte is, de fabrieksinstelling."
         }
       },
       "zone_areas": {

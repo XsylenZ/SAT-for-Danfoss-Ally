@@ -6,6 +6,7 @@ from typing import Any, TYPE_CHECKING
 from homeassistant.components.climate import DOMAIN as CLIMATE_DOMAIN
 from homeassistant.components.number import DOMAIN as NUMBER_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry
@@ -28,6 +29,7 @@ class Trv:
     load_estimate: str | None = None
     load_room_mean: str | None = None
     area_id: str | None = None
+    heat_available: str | None = None
 
 
 def is_ally(device: device_registry.DeviceEntry) -> bool:
@@ -64,6 +66,7 @@ def discover_trvs(hass: HomeAssistant, area_id: str | None = None) -> list[Trv]:
             load_estimate=_find_entity(device_entities, SENSOR_DOMAIN, "load_estimate"),
             load_room_mean=_find_entity(device_entities, NUMBER_DOMAIN, "load_room_mean"),
             area_id=trv_area_id,
+            heat_available=_find_entity(device_entities, SWITCH_DOMAIN, "heat_available"),
         ))
 
     return sorted(trvs, key=lambda trv: trv.climate)
@@ -95,6 +98,7 @@ class Zone:
         self.load_balancing: bool = bool(settings[CONF_ZONE_LOAD_BALANCING])
         self.minimum_opening: float = float(settings[CONF_ZONE_MINIMUM_OPENING])
         self.minimum_difference: float = float(settings[CONF_ZONE_MINIMUM_DIFFERENCE])
+        self.boiler_mode: bool = bool(settings[CONF_ZONE_BOILER_MODE])
         self.load_room_mean: int | None = None
 
         self.trvs: list[Trv] = []
@@ -194,6 +198,7 @@ class Zone:
             "trvs": [trv.climate for trv in self.trvs],
             "heating": self.heating,
             "opening": round(self.opening, 1),
+            "boiler_mode": self.boiler_mode,
             "load_balancing": self.load_balancing,
             "load_room_mean": self.load_room_mean,
         }
