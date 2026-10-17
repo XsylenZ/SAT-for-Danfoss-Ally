@@ -15,7 +15,7 @@ from .pid import PID
 from .pwm import PWM, CycleConfig
 
 if TYPE_CHECKING:
-    from .climate import SatClimate
+    from .switch import SatHeating
 
 
 def create_pid_controller(config_options) -> PID:
@@ -82,7 +82,7 @@ def create_pwm_controller(heating_curve: HeatingCurve, supports_relative_modulat
     return PWM(heating_curve=heating_curve, cycles=cycles, automatic_duty_cycle=automatic_duty_cycle, supports_relative_modulation_management=supports_relative_modulation_management, force=force)
 
 
-def get_climate_entities(hass: "HomeAssistant", entity_ids: list[str]) -> list["SatClimate"]:
+def get_climate_entities(hass: "HomeAssistant", entity_ids: list[str]) -> list["SatHeating"]:
     """Retrieve climate entities for the given entity IDs."""
     entities = []
     for entity_id in entity_ids:

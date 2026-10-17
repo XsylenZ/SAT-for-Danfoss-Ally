@@ -22,7 +22,7 @@ from .manufacturers.nefit import Nefit
 from .pwm import PWMState
 
 if TYPE_CHECKING:
-    from .climate import SatClimate
+    from .switch import SatHeating
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class SatDataUpdateCoordinatorFactory:
             return SatSimulatorCoordinator(hass=hass, config_data=data, options=options)
 
         if mode == MODE_SWITCH:
-            from .switch import SatSwitchCoordinator
+            from .relay import SatSwitchCoordinator
             return SatSwitchCoordinator(hass=hass, entity_id=device, config_data=data, options=options)
 
         if mode == MODE_ESPHOME:
@@ -425,7 +425,7 @@ class SatDataUpdateCoordinator(DataUpdateCoordinator):
         """Run when an entity is removed from hass."""
         pass
 
-    async def async_control_heating_loop(self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMState] = None, _time=None) -> None:
+    async def async_control_heating_loop(self, climate: Optional[SatHeating] = None, pwm_state: Optional[PWMState] = None, _time=None) -> None:
         """Control the heating loop for the device."""
         # Update Flame State
         self._flame.update(boiler_state=self.boiler, pwm_state=pwm_state)

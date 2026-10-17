@@ -14,13 +14,6 @@
       "calibration": "Calibrating and finding the overshoot protection value...\n\nPlease wait while we optimize your heating system. This process may take approximately 20 minutes."
     },
     "step": {
-      "areas": {
-        "title": "Thermostat",
-        "description": "Optionally select a room thermostat that is connected to the OpenTherm Gateway. The rooms and their Danfoss Ally TRVs are set up as zones in the options, after this setup.",
-        "data": {
-          "thermostat": "Thermostat"
-        }
-      },
       "automatic_gains": {
         "data": {
           "automatic_gains": "Automatic Gains (recommended)"
@@ -44,13 +37,6 @@
           "finish": "Continue with current calibration"
         },
         "title": "Calibration Completed"
-      },
-      "heating_system": {
-        "data": {
-          "heating_system": "System"
-        },
-        "description": "Selecting the correct heating system type is important for Ally OTGW to accurately control the temperature and optimize performance. Choose the option that matches your setup to ensure proper temperature regulation throughout your home.",
-        "title": "Heating System"
       },
       "mosquitto": {
         "description": "Configure the MQTT mode for your heating system. Select the gateway mode and provide its name.",
@@ -93,13 +79,11 @@
         "title": "Configure the PID controller manually."
       },
       "sensors": {
+        "title": "Outside temperature",
+        "description": "Select the outside temperature, which sets the base flow temperature of the boiler. A local outdoor sensor is best: if only a weather service is selected and it becomes unavailable, the boiler stays off. The room temperatures come from the Danfoss Ally TRVs, which you assign to zones in the options after this setup.",
         "data": {
-          "humidity_sensor_entity_id": "Humidity Sensor Entity",
-          "inside_sensor_entity_id": "Inside Sensor Entity",
-          "outside_sensor_entity_id": "Outside Sensor Entity"
-        },
-        "description": "Please select the sensors that will be used to track the temperature.",
-        "title": "Configure sensors"
+          "outside_sensor_entity_id": "Outside temperature"
+        }
       },
       "serial": {
         "data": {
@@ -153,26 +137,20 @@
     "step": {
       "advanced": {
         "data": {
-          "climate_valve_offset": "Climate valve offset",
           "dynamic_minimum_setpoint": "Dynamic Minimum Setpoint (Experimental)",
           "force_pulse_width_modulation": "Force Pulse Width Modulation",
           "maximum_consumption": "Maximum Consumption",
           "maximum_relative_modulation": "Maximum Relative Modulation",
           "minimum_consumption": "Minimum Consumption",
           "sample_time": "Sample Time",
-          "simulation": "Simulation",
-          "target_temperature_step": "Target Temperature Step",
-          "thermal_comfort": "Thermal Comfort"
+          "simulation": "Simulation"
         },
         "data_description": {
-          "climate_valve_offset": "Offset to adjust the opening degree of the climate valve.",
           "dynamic_minimum_setpoint": "Activates the dynamic setpoint adjustment based on the boiler's return temperature, which also helps identify if any valves are closed.",
           "maximum_consumption": "The maximum gas consumption when the boiler is active.",
           "maximum_relative_modulation": "Representing the highest modulation level for an efficient heating system.",
           "minimum_consumption": "The minimum gas consumption when the boiler is active.",
-          "sample_time": "The minimum time interval between updates to the PID controller.",
-          "target_temperature_step": "Adjust the target temperature step for fine-tuning comfort levels.",
-          "thermal_comfort": "Enable the use of the Simmer Index for thermal comfort adjustment."
+          "sample_time": "The minimum time interval between updates to the PID controller."
         },
         "title": "Advanced"
       },
@@ -189,9 +167,7 @@
           "maximum_setpoint": "Maximum Setpoint",
           "dynamic_minimum_setpoint_version": "Minimum Setpoint Controller Version",
           "pid_controller_version": "PID Controller Version",
-          "proportional": "Proportional (kP)",
-          "window_sensors": "Contact Sensors",
-          "heating_mode": "Heating Mode"
+          "proportional": "Proportional (kP)"
         },
         "data_description": {
           "automatic_gains_value": "The value used for automatic gains in the PID controller.",
@@ -202,8 +178,7 @@
           "overshoot_hold": "The minimum error a room keeps contributing while its thermostat still reports heating, so heat is requested until the thermostat itself is satisfied.",
           "integral": "The integral term (kI) in the PID controller, responsible for reducing steady-state error.",
           "maximum_setpoint": "The optimal temperature for efficient boiler operation.",
-          "proportional": "The proportional term (kP) in the PID controller, responsible for the immediate response to errors.",
-          "window_sensors": "Contact Sensors that trigger the system to react when a window or door is open for a period of time."
+          "proportional": "The proportional term (kP) in the PID controller, responsible for the immediate response to errors."
         },
         "description": "General settings and configurations.",
         "title": "General"
@@ -213,38 +188,19 @@
           "advanced": "Advanced Options",
           "general": "General",
           "zones": "Zones",
-          "presets": "Presets",
           "system_configuration": "System Configuration"
         }
-      },
-      "presets": {
-        "data": {
-          "activity_temperature": "Activity Temperature",
-          "away_temperature": "Away Temperature",
-          "comfort_temperature": "Comfort Temperature",
-          "home_temperature": "Home Temperature",
-          "sleep_temperature": "Sleep Temperature",
-          "push_setpoint_to_thermostat": "Synchronize with thermostat attached to the boiler",
-          "sync_climates_with_preset": "Synchronize climates with preset (sleep / away / activity)"
-        },
-        "description": "Predefined temperature settings for different scenarios or activities.",
-        "title": "Presets"
       },
       "system_configuration": {
         "data": {
           "cycles_per_hour": "Duty Cycles per hour",
           "automatic_duty_cycle": "Automatic duty cycle",
-          "sync_climates_with_mode": "Synchronize climates with mode",
-          "overshoot_protection": "Overshoot Protection (with PWM)",
-          "sensor_max_value_age": "Temperature Sensor maximum value age",
-          "window_minimum_open_time": "Minimum time for window to be open"
+          "sensor_max_value_age": "Temperature Sensor maximum value age"
         },
         "data_description": {
           "cycles_per_hour": "The maximum number of burner cycles per hour while Pulse Width Modulation (PWM) is running. This does not turn PWM on or off.",
           "automatic_duty_cycle": "How Pulse Width Modulation (PWM) times its on/off cycles. On: Ally OTGW picks the timing itself, limited by Duty Cycles per hour. Off: one fixed cycle of Maximum Duty Cycle (General) is split into on and off time. This does not turn PWM on or off: PWM runs whenever the requested flow temperature is below the Overshoot Protection Value.",
-          "overshoot_protection": "Enable overshoot protection with Pulse Width Modulation (PWM) to prevent boiler temperature overshooting.",
-          "sensor_max_value_age": "The maximum age of the temperature sensor value before considering it as a stall.",
-          "window_minimum_open_time": "The minimum time a window must be open before the system reacts."
+          "sensor_max_value_age": "The maximum age of the temperature sensor value before considering it as a stall."
         },
         "description": "For fine-tuning and customization.",
         "title": "System Configuration"

@@ -8,7 +8,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.ally_otgw.climate import SatClimate
+from custom_components.ally_otgw.switch import SatHeating
 from custom_components.ally_otgw.const import *
 from custom_components.ally_otgw.fake import SatFakeCoordinator
 from custom_components.ally_otgw.zones import Trv, discover_trvs
@@ -123,8 +123,8 @@ async def test_discover_only_danfoss_ally_trvs(hass: HomeAssistant) -> None:
     await add_trv(hass, "Werkkamer", "werkkamer")
 
     assert discover_trvs(hass, "woonkamer") == [
-        Trv("climate.eetkamer_r", "sensor.eetkamer_r_pi_heating_demand", "sensor.eetkamer_r_load_estimate", "number.eetkamer_r_load_room_mean"),
-        Trv("climate.tv_hoek_r", "sensor.tv_hoek_r_pi_heating_demand", "sensor.tv_hoek_r_load_estimate", "number.tv_hoek_r_load_room_mean"),
+        Trv("climate.eetkamer_r", "sensor.eetkamer_r_pi_heating_demand", "sensor.eetkamer_r_load_estimate", "number.eetkamer_r_load_room_mean", "woonkamer"),
+        Trv("climate.tv_hoek_r", "sensor.tv_hoek_r_pi_heating_demand", "sensor.tv_hoek_r_load_estimate", "number.tv_hoek_r_load_room_mean", "woonkamer"),
     ]
     assert [trv.climate for trv in discover_trvs(hass, "werkkamer")] == ["climate.werkkamer"]
     assert [trv.climate for trv in discover_trvs(hass)] == ["climate.eetkamer_r", "climate.tv_hoek_r", "climate.werkkamer"]
@@ -178,16 +178,15 @@ ZONES = [
             },
     )],
 ])
-async def test_zones_follow_trvs_that_are_added_moved_and_removed(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate, coordinator: SatFakeCoordinator) -> None:
-    await climate.async_set_target_temperature(21.0)
-    await climate.async_set_hvac_mode(HVACMode.HEAT)
+async def test_zones_follow_trvs_that_are_added_moved_and_removed(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    await heating.async_turn_on()
 
     # TRVs added after the integration started are picked up
     await add_trv(hass, "Woonkamer", "tv_hoek_r")
     await add_trv(hass, "Woonkamer", "tv_hoek_l")
     await add_trv(hass, "Werkkamer", "werkkamer")
 
-    zones = climate.extra_state_attributes["zones"]
+    zones = heating.extra_state_attributes["zones"]
     assert zones["woonkamer"]["name"] == "Woonkamer"
     assert zones["woonkamer"]["trvs"] == ["climate.tv_hoek_l", "climate.tv_hoek_r"]
     assert zones["werkkamer"]["trvs"] == ["climate.werkkamer"]
@@ -195,19 +194,59 @@ async def test_zones_follow_trvs_that_are_added_moved_and_removed(hass: HomeAssi
     # And their state changes are followed
     hass.states.async_set("climate.werkkamer", HVACMode.HEAT, {"current_temperature": 19.0, "temperature": 20.0, "hvac_action": "heating", "hvac_modes": [HVACMode.HEAT]})
     await hass.async_block_till_done()
-    await climate.async_control_heating_loop()
+    await heating.async_control_heating_loop()
 
-    assert climate.extra_state_attributes["zones"]["werkkamer"]["calling"]
-    assert climate.heat_demand
+    assert heating.extra_state_attributes["zones"]["werkkamer"]["calling"]
+    assert heating.heat_demand
 
     # Moving a TRV to another area moves it to that zone, or out of all zones
     await move_trv(hass, "tv_hoek_l", "Werkkamer")
     await move_trv(hass, "werkkamer", "Zolder")
 
-    zones = climate.extra_state_attributes["zones"]
+    zones = heating.extra_state_attributes["zones"]
     assert zones["woonkamer"]["trvs"] == ["climate.tv_hoek_r"]
     assert zones["werkkamer"]["trvs"] == ["climate.tv_hoek_l"]
-    assert "climate.werkkamer" not in climate.areas.items()
+    assert "climate.werkkamer" not in heating.areas.items()
+
+
+@pytest.mark.parametrize(*[
+    "domains, data, options, config",
+    [(
+            [(TEMPLATE_DOMAIN, 1)],
+            {CONF_MODE: MODE_FAKE, CONF_HEATING_SYSTEM: HEATING_SYSTEM_RADIATORS},
+            {CONF_ZONES: [{CONF_ZONE_AREA: "woonkamer", **TOGETHER}]},
+            {TEMPLATE_DOMAIN: [{SENSOR_DOMAIN: [{"name": "test_outside_sensor", "state": "{{ 9.9 | float }}"}]}]},
+    )],
+])
+async def test_overview_of_all_trvs(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, caplog: pytest.LogCaptureFixture) -> None:
+    await add_trv(hass, "Woonkamer", "tv_hoek_r")
+    await add_trv(hass, "Werkkamer", "werkkamer")
+    await add_trv(hass, "Woonkamer", "airco", manufacturer="Daikin", model="FTXM", model_id="FTXM25")
+
+    hass.states.async_set("climate.tv_hoek_r", HVACMode.HEAT, {"current_temperature": 19.5, "temperature": 20.0, "hvac_action": "heating"})
+    hass.states.async_set("sensor.tv_hoek_r_pi_heating_demand", "35")
+    await hass.async_block_till_done()
+
+    # A TRV outside of every zone won't call for heat, the user should know
+    assert "not in any zone, so they won't call for heat: climate.werkkamer" in caplog.text
+
+    heating.async_write_ha_state()
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.danfoss_ally_trvs_test")
+    assert state.state == "2"
+    assert state.attributes["in_a_zone"] == 1
+    assert state.attributes["not_in_a_zone"] == ["climate.werkkamer"]
+    assert state.attributes["trvs"] == [
+        {
+            "entity_id": "climate.tv_hoek_r", "name": "tv hoek r", "area": "Woonkamer", "zone": "Woonkamer",
+            "status": "heating", "current_temperature": 19.5, "target_temperature": 20.0, "opening": 35.0,
+        },
+        {
+            "entity_id": "climate.werkkamer", "name": "climate.werkkamer", "area": "Werkkamer", "zone": None,
+            "status": "unavailable", "current_temperature": None, "target_temperature": None, "opening": 0.0,
+        },
+    ]
 
 
 @pytest.mark.parametrize(*[
@@ -237,7 +276,7 @@ async def test_zones_follow_trvs_that_are_added_moved_and_removed(hass: HomeAssi
             },
     )],
 ])
-async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, climate: SatClimate) -> None:
+async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating) -> None:
     await add_trv(hass, "Woonkamer", "tv_hoek_r")
     await add_trv(hass, "Woonkamer", "tv_hoek_l")
     await add_trv(hass, "Werkkamer", "werkkamer")

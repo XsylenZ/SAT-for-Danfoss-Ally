@@ -13,13 +13,6 @@
       "calibration": "Kalibreren en de waarde van de overshootbeveiliging vinden...\n\nEven geduld a.u.b. terwijl wij uw verwarmingssysteem optimaliseren. Dit proces kan ongeveer 20 minuten duren."
     },
     "step": {
-      "areas": {
-        "title": "Thermostaat",
-        "description": "Kies eventueel een kamerthermostaat die op de OpenTherm Gateway is aangesloten. De ruimtes en hun Danfoss Ally-kranen stel je na deze installatie in als zones, in de opties.",
-        "data": {
-          "thermostat": "Thermostaat"
-        }
-      },
       "automatic_gains": {
         "data": {
           "automatic_gains": "Automatische Versterkingen (aanbevolen)"
@@ -43,13 +36,6 @@
           "finish": "Doorgaan met huidige kalibratie"
         },
         "title": "Kalibratie Voltooid"
-      },
-      "heating_system": {
-        "data": {
-          "heating_system": "Systeem"
-        },
-        "description": "Het kiezen van het juiste type verwarmingssysteem is belangrijk voor Ally OTGW om de temperatuur nauwkeurig te regelen en prestaties te optimaliseren. Kies de optie die overeenkomt met uw opstelling om een correcte temperatuurregeling in uw huis te verzekeren.",
-        "title": "Verwarmingssysteem"
       },
       "mosquitto": {
         "description": "Configureer de MQTT-modus voor uw verwarmingssysteem. Kies de gateway-modus en geef de naam op.",
@@ -92,13 +78,11 @@
         "title": "Configureer de PID-regelaar handmatig."
       },
       "sensors": {
+        "title": "Buitentemperatuur",
+        "description": "Kies de buitentemperatuur, die de basis-aanvoertemperatuur van de ketel bepaalt. Een lokale buitensensor is het best: als alleen een weerdienst is gekozen en die niet beschikbaar is, blijft de ketel uit. De kamertemperaturen komen van de Danfoss Ally-kranen, die je na deze installatie in de opties aan zones toewijst.",
         "data": {
-          "humidity_sensor_entity_id": "Vochtigheidssensor Entiteit",
-          "inside_sensor_entity_id": "Binnensensor Entiteit",
-          "outside_sensor_entity_id": "Buitensensor Entiteit"
-        },
-        "description": "Selecteer de sensoren die gebruikt zullen worden om de temperatuur te volgen.",
-        "title": "Configureer sensoren"
+          "outside_sensor_entity_id": "Buitentemperatuur"
+        }
       },
       "serial": {
         "data": {
@@ -146,26 +130,20 @@
     "step": {
       "advanced": {
         "data": {
-          "climate_valve_offset": "Offset van Klimaatklep",
           "dynamic_minimum_setpoint": "Dynamisch Minimaal Setpoint (Experimenteel)",
           "force_pulse_width_modulation": "Dwing Pulsbreedtemodulatie af",
           "maximum_consumption": "Maximaal Verbruik",
           "maximum_relative_modulation": "Maximale Relatieve Modulatie",
           "minimum_consumption": "Minimaal Verbruik",
           "sample_time": "Sampletijd",
-          "simulation": "Simulatie",
-          "target_temperature_step": "Stap van Doeltemperatuur",
-          "thermal_comfort": "Thermisch Comfort"
+          "simulation": "Simulatie"
         },
         "data_description": {
-          "climate_valve_offset": "Offset om de openingsgraad van de klimaatklep aan te passen.",
           "dynamic_minimum_setpoint": "Activeert de dynamische aanpassing van de minimale instelwaarde op basis van de retourtemperatuur van de ketel, wat ook helpt te identificeren of er kleppen gesloten zijn.",
           "maximum_consumption": "Het maximale gasverbruik wanneer de ketel actief is.",
           "maximum_relative_modulation": "Vertegenwoordigt het hoogste modulatieniveau voor een efficiënt verwarmingssysteem.",
           "minimum_consumption": "Het minimale gasverbruik wanneer de ketel actief is.",
-          "sample_time": "Het minimale tijdsinterval tussen updates aan de PID-regelaar.",
-          "target_temperature_step": "De stap van de doeltemperatuur aanpassen voor fijnafstemming van comfortniveaus.",
-          "thermal_comfort": "Gebruik van de Simmer Index voor aanpassing van thermisch comfort inschakelen."
+          "sample_time": "Het minimale tijdsinterval tussen updates aan de PID-regelaar."
         },
         "title": "Geavanceerd"
       },
@@ -181,9 +159,7 @@
           "integral": "Integraal (kI)",
           "maximum_setpoint": "Maximaal Setpoint",
           "pid_controller_version": "Versie van de PID-regelaar",
-          "proportional": "Proportioneel (kP)",
-          "window_sensors": "Contact Sensoren",
-          "heating_mode": "Verwarmingsmodus"
+          "proportional": "Proportioneel (kP)"
         },
         "data_description": {
           "automatic_gains_value": "De waarde die wordt gebruikt voor automatische versterkingen in de PID-regelaar.",
@@ -194,8 +170,7 @@
           "overshoot_hold": "De minimale fout die een ruimte blijft bijdragen zolang de thermostaat nog verwarming vraagt, zodat er warmte gevraagd wordt totdat de thermostaat zelf tevreden is.",
           "integral": "De integraalterm (kI) in de PID-regelaar, verantwoordelijk voor het verminderen van de blijvende fout.",
           "maximum_setpoint": "De optimale temperatuur voor efficiënte werking van de ketel.",
-          "proportional": "De proportionele term (kP) in de PID-regelaar, verantwoordelijk voor de directe reactie op fouten.",
-          "window_sensors": "Contact Sensoren die het systeem activeren wanneer een raam of deur voor een periode geopend is."
+          "proportional": "De proportionele term (kP) in de PID-regelaar, verantwoordelijk voor de directe reactie op fouten."
         },
         "description": "Algemene instellingen en configuraties.",
         "title": "Algemeen"
@@ -205,38 +180,19 @@
           "advanced": "Geavanceerde Opties",
           "general": "Algemeen",
           "zones": "Zones",
-          "presets": "Voorinstellingen",
           "system_configuration": "Systeemconfiguratie"
         }
-      },
-      "presets": {
-        "data": {
-          "activity_temperature": "Activiteit Temperatuur",
-          "away_temperature": "Temperatuur bij Afwezigheid",
-          "comfort_temperature": "Comfort Temperatuur",
-          "home_temperature": "Thuis Temperatuur",
-          "sleep_temperature": "Slaap Temperatuur",
-          "push_setpoint_to_thermostat": "Synchroniseer setpoint met thermostaat",
-          "sync_climates_with_preset": "Synchroniseer klimaten met voorinstelling (slaap / afwezig / activiteit)"
-        },
-        "description": "Vooraf gedefinieerde temperatuurinstellingen voor verschillende scenario's of activiteiten.",
-        "title": "Voorinstellingen"
       },
       "system_configuration": {
         "data": {
           "automatic_duty_cycle": "Automatische inschakelduur",
           "cycles_per_hour": "Inschakelcycli per uur",
-          "overshoot_protection": "Overshoot Bescherming (met PWM)",
-          "sync_climates_with_mode": "Synchroniseer klimaten met modus",
-          "sensor_max_value_age": "Maximale leeftijd van de waarden van de temperatuursensor",
-          "window_minimum_open_time": "Minimale open tijd van het raam"
+          "sensor_max_value_age": "Maximale leeftijd van de waarden van de temperatuursensor"
         },
         "data_description": {
           "automatic_duty_cycle": "Hoe Pulsbreedtemodulatie (PWM) de aan/uit-cycli timet. Aan: Ally OTGW bepaalt de timing zelf, begrensd door Inschakelcycli per uur. Uit: één vaste cyclus van Maximale Inschakelduur (Algemeen) wordt verdeeld in aan- en uittijd. Dit zet PWM niet aan of uit: PWM draait zodra de gevraagde aanvoertemperatuur onder de Overshoot Beschermingswaarde ligt.",
           "cycles_per_hour": "Het maximale aantal branderstarts per uur terwijl Pulsbreedtemodulatie (PWM) actief is. Dit zet PWM niet aan of uit.",
-          "overshoot_protection": "Overshoot Bescherming inschakelen met Pulsbreedtemodulatie (PWM) om temperatuur-overshoot van de ketel te voorkomen.",
-          "sensor_max_value_age": "De maximale leeftijd van de waarden van de temperatuursensor voordat het als verouderd wordt beschouwd.",
-          "window_minimum_open_time": "De minimale tijd dat een raam open moet zijn voordat het systeem reageert."
+          "sensor_max_value_age": "De maximale leeftijd van de waarden van de temperatuursensor voordat het als verouderd wordt beschouwd."
         },
         "description": "Voor fijnafstelling en aanpassing.",
         "title": "Systeemconfiguratie"

@@ -6,7 +6,7 @@ from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import assert_setup_component, MockConfigEntry
 
 from custom_components.ally_otgw.const import DOMAIN, CLIMATE, COORDINATOR
-from custom_components.ally_otgw.climate import SatClimate
+from custom_components.ally_otgw.switch import SatHeating
 from custom_components.ally_otgw.fake import SatFakeCoordinator
 from tests.const import DEFAULT_USER_DATA
 
@@ -38,7 +38,7 @@ async def entry(hass: HomeAssistant, domains: list, data: dict, options: dict, c
 
 
 @pytest.fixture
-async def climate(hass, entry: MockConfigEntry) -> SatClimate:
+async def heating(hass, entry: MockConfigEntry) -> SatHeating:
     return hass.data[DOMAIN][entry.entry_id][CLIMATE]
 
 

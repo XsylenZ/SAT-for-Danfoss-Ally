@@ -1,8 +1,8 @@
 import asyncio
 import logging
 
-from homeassistant.components import binary_sensor, climate, number, sensor
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry
 from homeassistant.helpers.storage import Store
@@ -11,7 +11,6 @@ from .const import (
     DOMAIN,
     CLIMATE,
     COORDINATOR,
-    OPTIONS_DEFAULTS,
     CONF_MODE,
     CONF_DEVICE,
     SERVICE_RESET_INTEGRAL,
@@ -19,10 +18,11 @@ from .const import (
 )
 from .coordinator import SatDataUpdateCoordinatorFactory
 from .services import async_register_services
+from .switch import SatHeating
 from .util import get_climate_entities
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
-PLATFORMS = [climate.DOMAIN, sensor.DOMAIN, number.DOMAIN, binary_sensor.DOMAIN]
+PLATFORMS = [Platform.SWITCH, Platform.SENSOR, Platform.NUMBER, Platform.BINARY_SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -45,8 +45,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Making sure everything is loaded
     await hass.data[DOMAIN][entry.entry_id][COORDINATOR].async_setup()
 
-    # Forward entry setup for used platforms
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Create the heating controller before the platforms, the sensors of every platform depend on it
+    hass.data[DOMAIN][entry.entry_id][CLIMATE] = SatHeating(hass.data[DOMAIN][entry.entry_id][COORDINATOR], entry)
+
+    # Forward entry setup for used platforms, the switch first since the sensors follow its state
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS[:1])
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS[1:])
 
     # Register the services
     await async_register_services(hass)

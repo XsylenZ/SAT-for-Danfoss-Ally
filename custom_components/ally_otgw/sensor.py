@@ -47,6 +47,8 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
         SatManufacturerSensor(coordinator, _config_entry),
         SatErrorValueSensor(coordinator, _config_entry, climate),
         SatHeatingCurveSensor(coordinator, _config_entry, climate),
+        SatRequestedSetpointSensor(coordinator, _config_entry, climate),
+        SatTrvsSensor(coordinator, _config_entry, climate),
     ])
 
     if coordinator.supports_relative_modulation_management:
@@ -186,6 +188,88 @@ class SatHeatingCurveSensor(SatClimateEntity, SensorEntity):
         """Return a unique ID to use for this entity."""
         return f"{self._config_entry.data.get(CONF_NAME).lower()}-heating-curve"
 
+
+class SatRequestedSetpointSensor(SatClimateEntity, SensorEntity):
+    """The flow temperature that the heating curve and PID ask for, before PWM and the demand gate."""
+
+    async def async_added_to_hass(self) -> None:
+        async def on_state_change(_event: Event[EventStateChangedData]):
+            self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_track_state_change_event(
+                self.hass, [self._climate.entity_id], on_state_change
+            )
+        )
+
+    @property
+    def name(self) -> str:
+        return f"Requested Setpoint {self._config_entry.data.get(CONF_NAME)}"
+
+    @property
+    def device_class(self):
+        """Return the device class."""
+        return SensorDeviceClass.TEMPERATURE
+
+    @property
+    def native_unit_of_measurement(self):
+        """Return the unit of measurement."""
+        return UnitOfTemperature.CELSIUS
+
+    @property
+    def native_value(self) -> float:
+        """Return the requested setpoint."""
+        return self._climate.requested_setpoint
+
+    @property
+    def unique_id(self) -> str:
+        """Return a unique ID to use for this entity."""
+        return f"{self._config_entry.data.get(CONF_NAME).lower()}-requested-setpoint"
+
+class SatTrvsSensor(SatClimateEntity, SensorEntity):
+    """The Danfoss Ally TRVs that Home Assistant knows about, which zone they are in, and what they are doing."""
+
+    async def async_added_to_hass(self) -> None:
+        async def on_state_change(_event: Event[EventStateChangedData]):
+            self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_track_state_change_event(
+                self.hass, [self._climate.entity_id], on_state_change
+            )
+        )
+
+    @property
+    def name(self) -> str:
+        return f"Danfoss Ally TRVs {self._config_entry.data.get(CONF_NAME)}"
+
+    @property
+    def icon(self) -> str:
+        return "mdi:radiator"
+
+    @property
+    def native_unit_of_measurement(self):
+        return "TRVs"
+
+    @property
+    def native_value(self) -> int:
+        """Return how many Danfoss Ally TRVs we found."""
+        return len(self._climate.areas.overview())
+
+    @property
+    def extra_state_attributes(self):
+        trvs = self._climate.areas.overview()
+
+        return {
+            "in_a_zone": len([trv for trv in trvs if trv["zone"] is not None]),
+            "not_in_a_zone": [trv["entity_id"] for trv in trvs if trv["zone"] is None],
+            "trvs": trvs,
+        }
+
+    @property
+    def unique_id(self) -> str:
+        """Return a unique ID to use for this entity."""
+        return f"{self._config_entry.data.get(CONF_NAME).lower()}-trvs"
 
 class SatErrorValueSensor(SatClimateEntity, SensorEntity):
 

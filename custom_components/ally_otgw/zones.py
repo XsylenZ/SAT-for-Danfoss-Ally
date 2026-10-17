@@ -26,6 +26,7 @@ class Trv:
     pi_heating_demand: str | None = None
     load_estimate: str | None = None
     load_room_mean: str | None = None
+    area_id: str | None = None
 
 
 def is_ally(device: device_registry.DeviceEntry) -> bool:
@@ -51,7 +52,8 @@ def discover_trvs(hass: HomeAssistant, area_id: str | None = None) -> list[Trv]:
             continue
 
         # An area assigned to the entity itself takes precedence over the area of its device
-        if area_id is not None and (climate.area_id or device.area_id) != area_id:
+        trv_area_id = climate.area_id or device.area_id
+        if area_id is not None and trv_area_id != area_id:
             continue
 
         trvs.append(Trv(
@@ -59,6 +61,7 @@ def discover_trvs(hass: HomeAssistant, area_id: str | None = None) -> list[Trv]:
             pi_heating_demand=_find_entity(device_entities, SENSOR_DOMAIN, "pi_heating_demand"),
             load_estimate=_find_entity(device_entities, SENSOR_DOMAIN, "load_estimate"),
             load_room_mean=_find_entity(device_entities, NUMBER_DOMAIN, "load_room_mean"),
+            area_id=trv_area_id,
         ))
 
     return sorted(trvs, key=lambda trv: trv.climate)
@@ -103,7 +106,7 @@ class Zone:
 
         self.available = len(available) > 0
         self.heating = [trv.climate for trv in heating]
-        self.opening = sum(_opening(hass, trv) for trv in heating)
+        self.opening = sum(opening(hass, trv) for trv in heating)
 
         # Nobody in this zone wants heat (anymore)
         if not heating:
@@ -143,7 +146,7 @@ class Zone:
         }
 
 
-def _opening(hass: HomeAssistant | None, trv: Trv) -> float:
+def opening(hass: HomeAssistant | None, trv: Trv) -> float:
     """Return how far the valve of the TRV is open, in percent."""
     if hass is None or trv.pi_heating_demand is None:
         return 0.0

@@ -5,14 +5,11 @@ from time import monotonic
 
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.components.climate import HVACAction
-from homeassistant.components.group.binary_sensor import BinarySensorGroup
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .climate import SatClimate
-from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, DOMAIN, COORDINATOR, CLIMATE, CONF_WINDOW_SENSORS, FlameStatus, BoilerStatus
+from .const import CONF_MODE, MODE_SERIAL, CONF_NAME, DOMAIN, COORDINATOR, CLIMATE, FlameStatus, BoilerStatus
 from .entity import SatClimateEntity, SatEntity
 from .helpers import seconds_since
 from .serial import binary_sensor as serial_binary_sensor
@@ -37,13 +34,11 @@ async def async_setup_entry(_hass: HomeAssistant, _config_entry: ConfigEntry, _a
     if coordinator.supports_relative_modulation_management:
         _async_add_entities([SatRelativeModulationSynchroSensor(coordinator, _config_entry, climate)])
 
-    if len(_config_entry.options.get(CONF_WINDOW_SENSORS, [])) > 0:
-        _async_add_entities([SatWindowSensor(coordinator, _config_entry, climate)])
-
     _async_add_entities([
         SatFlameHealthSensor(coordinator, _config_entry),
         SatBoilerHealthSensor(coordinator, _config_entry),
-        SatCentralHeatingSynchroSensor(coordinator, _config_entry, climate)
+        SatCentralHeatingSynchroSensor(coordinator, _config_entry, climate),
+        SatHeatDemandSensor(coordinator, _config_entry, climate),
     ])
 
 
@@ -156,7 +151,7 @@ class SatCentralHeatingSynchroSensor(SatSynchroSensor, SatClimateEntity, BinaryS
     def is_on(self) -> bool:
         """Return the state of the sensor."""
         device_active = self._coordinator.device_active
-        climate_hvac_action = self._climate.state_attributes.get("hvac_action")
+        climate_hvac_action = self._climate.hvac_action
 
         return self.state_delayed(not (
                 (climate_hvac_action == HVACAction.OFF and not device_active) or
@@ -221,25 +216,26 @@ class SatFlameHealthSensor(SatEntity, BinarySensorEntity):
         return f"{self._config_entry.data.get(CONF_NAME).lower()}-flame-health"
 
 
-class SatWindowSensor(SatClimateEntity, BinarySensorGroup):
-    def __init__(self, coordinator, config_entry: ConfigEntry, climate: SatClimate):
-        super().__init__(coordinator, config_entry, climate)
 
-        self.mode = any
-        self._entity_ids = self._config_entry.options.get(CONF_WINDOW_SENSORS)
-        self._attr_extra_state_attributes = {ATTR_ENTITY_ID: self._entity_ids}
+class SatHeatDemandSensor(SatClimateEntity, BinarySensorEntity):
+    """Whether any zone is calling for heat, or the frost guard needs heat."""
 
     @property
     def name(self) -> str:
         """Return the friendly name of the sensor."""
-        return "Smart Autotune Thermostat Window Sensor"
+        return "Heat Demand"
 
     @property
     def device_class(self) -> str:
         """Return the device class."""
-        return BinarySensorDeviceClass.WINDOW
+        return BinarySensorDeviceClass.HEAT
+
+    @property
+    def is_on(self) -> bool:
+        """Return the state of the sensor."""
+        return self._climate.heat_demand
 
     @property
     def unique_id(self) -> str:
         """Return a unique ID to use for this entity."""
-        return f"{self._config_entry.data.get(CONF_NAME).lower()}-window-sensor"
+        return f"{self._config_entry.data.get(CONF_NAME).lower()}-heat-demand"

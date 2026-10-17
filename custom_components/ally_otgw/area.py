@@ -5,6 +5,7 @@ from typing import Any, Callable
 from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import area_registry
 from homeassistant.util import dt
 
 from .const import CONF_ZONES, CONF_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE
@@ -16,7 +17,7 @@ from .util import (
     create_pid_controller,
     create_heating_curve_controller,
 )
-from .zones import Trv, Zone, discover_trvs
+from .zones import Trv, Zone, discover_trvs, opening
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,6 +158,7 @@ class Areas:
 
         self._areas: dict[str, Area] = {}
         self._zones: list[Zone] = [Zone(settings) for settings in config_options.get(CONF_ZONES) or []]
+        self._unassigned: list[str] | None = None
 
     @property
     def configured(self) -> bool:
@@ -208,12 +210,75 @@ class Areas:
                 areas[trv.climate] = area
 
         self._areas = areas
+        self._log_unassigned()
+
         return changed
+
+    def _log_unassigned(self) -> None:
+        """Let the user know about TRVs that won't call for heat, and zones without any TRV."""
+        if self._discover is not discover_trvs:
+            return
+
+        unassigned = [trv.climate for trv in discover_trvs(self._hass) if trv.climate not in self._areas]
+        if unassigned == self._unassigned:
+            return
+
+        self._unassigned = unassigned
+
+        if unassigned:
+            _LOGGER.warning("These Danfoss Ally TRVs are not in any zone, so they won't call for heat: %s", ", ".join(unassigned))
+
+        for zone in self._zones:
+            if not zone.trvs:
+                _LOGGER.warning("Zone %s doesn't contain any Danfoss Ally TRV", zone.area_id)
+
+    def overview(self) -> list[dict[str, Any]]:
+        """Return every Danfoss Ally TRV that Home Assistant knows about, and what we do with it."""
+        if self._hass is None:
+            return []
+
+        registry = area_registry.async_get(self._hass)
+        zones = {trv.climate: zone for zone in self._zones for trv in zone.trvs}
+
+        def area_name(area_id: str | None) -> str | None:
+            return (area.name if (area := registry.async_get_area(area_id)) is not None else area_id) if area_id else None
+
+        result = []
+        for trv in discover_trvs(self._hass):
+            state = self._hass.states.get(trv.climate)
+            area = self._areas.get(trv.climate)
+
+            if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                status = "unavailable"
+            elif area is not None and area.stale:
+                status = "stale"
+            else:
+                status = state.attributes.get("hvac_action") or state.state
+
+            result.append({
+                "entity_id": trv.climate,
+                "name": state.name if state is not None else trv.climate,
+                "area": area_name(trv.area_id),
+                "zone": area_name(zones[trv.climate].area_id) if trv.climate in zones else None,
+                "status": status,
+                "current_temperature": state.attributes.get("current_temperature") if state is not None else None,
+                "target_temperature": state.attributes.get("temperature") if state is not None else None,
+                "opening": opening(self._hass, trv),
+            })
+
+        return result
 
     def update(self) -> None:
         """Determine which zones are calling for heat."""
         for zone in self._zones:
             zone.update(self._areas, self._hass)
+
+    def target_temperature(self, entity_id: str) -> float | None:
+        """Return the target temperature of the TRV with the given climate entity."""
+        if (area := self._areas.get(entity_id)) is None:
+            return None
+
+        return area.target_temperature
 
     def summary(self) -> dict[str, Any]:
         """Return the state of every zone."""

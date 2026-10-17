@@ -26,6 +26,11 @@ AREA_STATE_MAX_AGE = 3600
 # Once no room is calling for heat, a running burn may finish, but never for longer than this (in seconds)
 DEMAND_BURN_FINISH_TIMEOUT = 600
 
+# Frost guard: when none of the TRVs is available, heat for this temperature below this outside temperature
+FROST_GUARD_TARGET_TEMPERATURE = 10.0
+FROST_GUARD_OUTSIDE_TEMPERATURE = 3.0
+FROST_GUARD_HYSTERESIS = 1.0
+
 HEATER_STARTUP_TIMEFRAME = 180
 
 COLD_SETPOINT = 28.2

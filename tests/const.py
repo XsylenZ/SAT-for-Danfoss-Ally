@@ -2,7 +2,6 @@ from custom_components.ally_otgw.const import (
     MODE_FAKE,
     CONF_DEVICE,
     CONF_NAME,
-    CONF_INSIDE_SENSOR_ENTITY_ID,
     CONF_OUTSIDE_SENSOR_ENTITY_ID,
     CONF_MODE,
     CONF_AUTOMATIC_GAINS,
@@ -17,6 +16,5 @@ DEFAULT_USER_DATA = {
     CONF_AUTOMATIC_GAINS: True,
     CONF_AUTOMATIC_DUTY_CYCLE: True,
     CONF_OVERSHOOT_PROTECTION: True,
-    CONF_INSIDE_SENSOR_ENTITY_ID: "sensor.test_inside_sensor",
     CONF_OUTSIDE_SENSOR_ENTITY_ID: "sensor.test_outside_sensor",
 }

@@ -1,13 +1,13 @@
 reset_integral:
   target:
     entity:
-      domain: climate
+      domain: switch
       integration: "ally_otgw"
 
 pulse_width_modulation:
   target:
     entity:
-      domain: climate
+      domain: switch
       integration: "ally_otgw"
   fields:
     enabled:

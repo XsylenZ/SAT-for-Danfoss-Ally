@@ -15,6 +15,32 @@ PID control, pulse width modulation, overshoot protection calibration) comes fro
 
 Like SAT, it is licensed under the [GNU General Public License v3.0](LICENSE).
 
+## How it works
+
+The Danfoss Ally TRVs are the thermostats: you set the temperature of every room on its TRVs (or
+with Home Assistant schedules). This integration only decides when the boiler fires, and how hot.
+
+- **Setup** asks for the connection to the OpenTherm Gateway and the outside temperature, which
+  sets the base flow temperature through the heating curve. A local outdoor sensor is best; with
+  only a weather service, the boiler stays off while that service is unavailable.
+- **The heating switch** (`switch.<name>`) turns the control of the boiler on and off. There is no
+  target temperature of its own: the flow temperature follows the target of the TRV that is
+  currently driving the boiler.
+- **Frost guard**: when none of the TRVs is available, and it is below 3 °C outside, the boiler
+  heats as if the house wants 10 °C. With a typical heating curve coefficient, this only makes the
+  boiler fire when it really freezes.
+
+Entities that help to see what is going on:
+
+| Entity | Shows |
+|---|---|
+| `switch.<name>` | On/off, and as attributes: the zones, `heat_demand`, `heat_allowed`, `frost_guard`, `failsafe`, PID and PWM state |
+| `sensor.danfoss_ally_trvs_<name>` | Every Danfoss Ally TRV found, its area, its zone (or none), its status, temperatures and valve opening |
+| `binary_sensor.heat_demand` | Whether any zone is calling for heat |
+| `sensor.requested_setpoint_<name>` | The flow temperature that the heating curve and PID ask for |
+
+TRVs that are not in any zone, and zones without any TRV, are logged as warnings.
+
 ## Zones
 
 Rooms are set up as **zones**, based on your Home Assistant areas. After adding the integration,

@@ -10,7 +10,7 @@ from ..coordinator import DeviceState, SatDataUpdateCoordinator
 from ..helpers import convert_time_str_to_seconds
 
 if TYPE_CHECKING:
-    from ..climate import SatClimate
+    from ..switch import SatHeating
 
 
 class SatSimulatorCoordinator(SatDataUpdateCoordinator):
@@ -84,7 +84,7 @@ class SatSimulatorCoordinator(SatDataUpdateCoordinator):
         self._maximum_setpoint = value
         await super().async_set_control_max_setpoint(value)
 
-    async def async_control_heating_loop(self, climate: Optional[SatClimate] = None, pwm_state: Optional[PWMStatus] = None, _time=None) -> None:
+    async def async_control_heating_loop(self, climate: Optional[SatHeating] = None, pwm_state: Optional[PWMStatus] = None, _time=None) -> None:
         # Calculate the difference, so we know when to slowdown
         difference = abs(self._boiler_temperature - self.target)
         self.logger.debug(f"Target: {self.target}, Current: {self._boiler_temperature}, Difference: {difference}")

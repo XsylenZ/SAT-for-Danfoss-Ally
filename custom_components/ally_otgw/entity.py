@@ -12,7 +12,7 @@ from .const import DOMAIN, NAME, CONF_NAME
 _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 if typing.TYPE_CHECKING:
-    from .climate import SatClimate
+    from .switch import SatHeating
     from .coordinator import SatDataUpdateCoordinator
 
 
@@ -39,7 +39,7 @@ class SatEntity(CoordinatorEntity):
 
 
 class SatClimateEntity(SatEntity):
-    def __init__(self, coordinator, config_entry: ConfigEntry, climate: SatClimate):
+    def __init__(self, coordinator, config_entry: ConfigEntry, climate: SatHeating):
         super().__init__(coordinator, config_entry)
 
         self._climate = climate
