@@ -796,6 +796,9 @@ class SatHeating(SatEntity, SwitchEntity, RestoreEntity):
         await self._coordinator.async_set_control_setpoint(MINIMUM_SETPOINT)
         await self.async_set_heater_state(DeviceState.OFF)
 
+        # The boiler stays off, so the TRVs of zones in boiler mode shouldn't wait for heat
+        await self.async_tell_heat_available(False)
+
         self.async_write_ha_state()
 
     def reset_control_state(self):

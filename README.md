@@ -127,13 +127,38 @@ A Danfoss gateway also tells its TRVs whether heat is available (`heat_available
 gateway nobody does, so the TRVs assume warm water is always there, like with district heating:
 when the boiler is off, a TRV just below its target keeps opening its valve, waiting for heat that
 isn't coming. Once it hears that no heat is available, a Danfoss Ally switches to its boiler mode
-for 48 hours, meant for a heat source that switches on and off, and doesn't move its motor while no
-heat is coming.
+for 48 hours, meant for a heat source that switches on and off.
 
 With **Boiler mode** turned on for a zone, this integration tells its TRVs that heat is available
-while the boiler is heating or circulating, and that it isn't as soon as it stops, only when that
-changes. Every other TRV, and every TRV while the heating switch is off or the integration is
-removed, is told heat is available again: the factory default. Off by default.
+while the boiler is heating or circulating, and that it isn't as soon as it stops (or when the
+fail-safe turns the boiler off), only when that changes. Every other TRV, and every TRV while the
+heating switch is off or the integration is removed, is told heat is available again: the factory
+default. Off by default.
+
+What the TRV does with it depends on its firmware and its Heating System Mode (Danfoss attribute
+`0x4059`):
+
+- Firmware 20 doesn't have boiler mode and ignores `heat_available`; update it to firmware 32 in
+  Zigbee2MQTT → OTA first.
+- Mode 0 (Auto, the default) switches to boiler mode for 48 hours after hearing that no heat is
+  available. Mode 1 (Boiler) always is. Zigbee2MQTT has no entity for it; set it once per TRV with
+  the `mqtt.publish` action:
+
+  ```yaml
+  action: mqtt.publish
+  data:
+    topic: zigbee2mqtt/<TRV name>/set
+    payload: '{"write": {"cluster": "hvacThermostat", "payload": {"16473": {"value": 1, "type": 32}}, "options": {"manufacturerCode": 4678}}}'
+  ```
+
+  Read it back with `'{"read": {"cluster": "hvacThermostat", "attributes": [16473], "options": {"manufacturerCode": 4678}}}'`
+  and look for `Read result of 'hvacThermostat': {"16473":1}` in the Zigbee2MQTT logs (log level debug).
+
+In boiler mode the TRV keeps its own hysteresis: measured on firmware 32, it asks for heat at half a
+degree below its target and stops just below it, and it keeps its valve open while idle, so it
+takes the heat at once when the boiler fires. A zone in boiler mode therefore needs no minimum
+difference or minimum valve opening, and still needs **Boiler mode** turned on here: without
+hearing that no heat is available, the TRV keeps waiting for heat that isn't coming.
 
 The `zones` attribute of the heating switch shows every zone, its TRVs, which of them are heating,
 their total valve opening, whether the zone is calling for heat and its load room mean. The Danfoss
