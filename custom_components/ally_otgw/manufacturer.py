@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from importlib import import_module
 from typing import Optional, List, Type
 
 from .helpers import snake_case
@@ -60,4 +61,4 @@ class ManufacturerFactory:
     @staticmethod
     def _import_class(module_name: str, class_name: str) -> Type[Manufacturer]:
         """Dynamically import and return a Manufacturer class."""
-        return getattr(__import__(f"custom_components.sat.manufacturers.{module_name}", fromlist=[class_name]), class_name)
+        return getattr(import_module(f".manufacturers.{module_name}", __package__), class_name)

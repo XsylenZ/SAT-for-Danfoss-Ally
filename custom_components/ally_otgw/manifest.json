@@ -1,0 +1,28 @@
+{
+  "domain": "ally_otgw",
+  "name": "Danfoss Ally OTGW",
+  "codeowners": [
+    "@XsylenZ"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "mqtt",
+    "dhcp"
+  ],
+  "dhcp": [
+    {
+      "hostname": "otgw"
+    }
+  ],
+  "documentation": "https://github.com/XsylenZ/SAT-for-Danfoss-Ally",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/XsylenZ/SAT-for-Danfoss-Ally/issues",
+  "mqtt": [
+    "ems-esp/#",
+    "OTGW/value/+"
+  ],
+  "requirements": [
+    "pyotgw==2.2.2"
+  ],
+  "version": "1.0.0"
+}

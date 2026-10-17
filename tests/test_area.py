@@ -8,8 +8,8 @@ from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import State
 from homeassistant.util import dt
 
-from custom_components.sat.area import Area, Areas
-from custom_components.sat.const import *
+from custom_components.ally_otgw.area import Area, Areas
+from custom_components.ally_otgw.const import *
 from tests.const import DEFAULT_USER_DATA
 
 ENTITY_ID = "climate.radiator_test"

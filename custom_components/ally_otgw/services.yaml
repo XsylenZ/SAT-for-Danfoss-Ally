@@ -2,13 +2,13 @@ reset_integral:
   target:
     entity:
       domain: climate
-      integration: "sat"
+      integration: "ally_otgw"
 
 pulse_width_modulation:
   target:
     entity:
       domain: climate
-      integration: "sat"
+      integration: "ally_otgw"
   fields:
     enabled:
       required: true

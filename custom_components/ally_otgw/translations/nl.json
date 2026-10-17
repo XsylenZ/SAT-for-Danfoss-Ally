@@ -25,7 +25,7 @@
         "data": {
           "automatic_gains": "Automatische Versterkingen (aanbevolen)"
         },
-        "description": "Deze functie past de regelparameters van uw verwarmingssysteem dynamisch aan, waardoor de temperatuurregeling wordt geoptimaliseerd voor meer comfort en energie-efficiëntie. Het inschakelen van deze optie stelt SAT in staat om de verwarmingsinstellingen voortdurend aan te passen en te verfijnen op basis van de omgevingsomstandigheden. Dit helpt een stabiele en comfortabele omgeving te handhaven zonder handmatige tussenkomst.\n\nLet op: Als u ervoor kiest om automatische versterkingen niet in te schakelen, moet u handmatig de PID-waarden invoeren voor nauwkeurige temperatuurregeling. Zorg ervoor dat u nauwkeurige PID-waarden heeft voor uw specifieke verwarmingssysteem om optimale prestaties te bereiken.",
+        "description": "Deze functie past de regelparameters van uw verwarmingssysteem dynamisch aan, waardoor de temperatuurregeling wordt geoptimaliseerd voor meer comfort en energie-efficiëntie. Het inschakelen van deze optie stelt Ally OTGW in staat om de verwarmingsinstellingen voortdurend aan te passen en te verfijnen op basis van de omgevingsomstandigheden. Dit helpt een stabiele en comfortabele omgeving te handhaven zonder handmatige tussenkomst.\n\nLet op: Als u ervoor kiest om automatische versterkingen niet in te schakelen, moet u handmatig de PID-waarden invoeren voor nauwkeurige temperatuurregeling. Zorg ervoor dat u nauwkeurige PID-waarden heeft voor uw specifieke verwarmingssysteem om optimale prestaties te bereiken.",
         "title": "Automatische Versterkingen"
       },
       "calibrate_system": {
@@ -38,7 +38,7 @@
         "title": "Systeem Kalibreren"
       },
       "calibrated": {
-        "description": "Het kalibratieproces is succesvol voltooid.\n\nGefeliciteerd! Uw Slimme Autotune Thermostaat (SAT) is gekalibreerd om de verwarmingsprestaties van uw systeem te optimaliseren. Tijdens het kalibratieproces heeft SAT zorgvuldig de verwarmingskenmerken geanalyseerd en de geschikte overshoot-beveiligingswaarde bepaald om nauwkeurige temperatuurregeling te verzekeren.\n\nOvershoot-beveiligingswaarde: {minimum_setpoint} °C\n\nDeze waarde vertegenwoordigt de maximale hoeveelheid overshoot die is toegestaan tijdens het verwarmingsproces. SAT zal actief de verwarming monitoren en aanpassen om overmatig overshoot te voorkomen, en zo een comfortabele en efficiënte verwarmingservaring in uw huis te handhaven.\n\nLet op dat de overshoot-beveiligingswaarde kan variëren afhankelijk van de specifieke kenmerken van uw verwarmingssysteem en omgevingsfactoren. Het is fijn afgestemd om optimale prestaties te bieden op basis van de kalibratieresultaten.",
+        "description": "Het kalibratieproces is succesvol voltooid.\n\nGefeliciteerd! Uw Danfoss Ally OTGW is gekalibreerd om de verwarmingsprestaties van uw systeem te optimaliseren. Tijdens het kalibratieproces heeft Ally OTGW zorgvuldig de verwarmingskenmerken geanalyseerd en de geschikte overshoot-beveiligingswaarde bepaald om nauwkeurige temperatuurregeling te verzekeren.\n\nOvershoot-beveiligingswaarde: {minimum_setpoint} °C\n\nDeze waarde vertegenwoordigt de maximale hoeveelheid overshoot die is toegestaan tijdens het verwarmingsproces. Ally OTGW zal actief de verwarming monitoren en aanpassen om overmatig overshoot te voorkomen, en zo een comfortabele en efficiënte verwarmingservaring in uw huis te handhaven.\n\nLet op dat de overshoot-beveiligingswaarde kan variëren afhankelijk van de specifieke kenmerken van uw verwarmingssysteem en omgevingsfactoren. Het is fijn afgestemd om optimale prestaties te bieden op basis van de kalibratieresultaten.",
         "menu_options": {
           "calibrate": "Kalibratie opnieuw proberen",
           "finish": "Doorgaan met huidige kalibratie"
@@ -49,7 +49,7 @@
         "data": {
           "heating_system": "Systeem"
         },
-        "description": "Het kiezen van het juiste type verwarmingssysteem is belangrijk voor SAT om de temperatuur nauwkeurig te regelen en prestaties te optimaliseren. Kies de optie die overeenkomt met uw opstelling om een correcte temperatuurregeling in uw huis te verzekeren.",
+        "description": "Het kiezen van het juiste type verwarmingssysteem is belangrijk voor Ally OTGW om de temperatuur nauwkeurig te regelen en prestaties te optimaliseren. Kies de optie die overeenkomt met uw opstelling om een correcte temperatuurregeling in uw huis te verzekeren.",
         "title": "Verwarmingssysteem"
       },
       "mosquitto": {
@@ -80,7 +80,7 @@
         "data": {
           "minimum_setpoint": "Waarde"
         },
-        "description": "Door het verstrekken van de overshoot-beveiligingswaarde zal SAT de regelparameters dienovereenkomstig aanpassen om een stabiele en comfortabele verwarmingsomgeving te behouden. Deze handmatige configuratie stelt u in staat het systeem fijn af te stemmen op basis van uw specifieke opstelling.\n\nLet op: Als u niet zeker bent over de overshoot-beveiligingswaarde of het kalibratieproces niet heeft uitgevoerd, wordt aanbevolen de configuratie te annuleren en het kalibratieproces te doorlopen zodat SAT automatisch de waarde voor optimale prestaties kan bepalen.",
+        "description": "Door het verstrekken van de overshoot-beveiligingswaarde zal Ally OTGW de regelparameters dienovereenkomstig aanpassen om een stabiele en comfortabele verwarmingsomgeving te behouden. Deze handmatige configuratie stelt u in staat het systeem fijn af te stemmen op basis van uw specifieke opstelling.\n\nLet op: Als u niet zeker bent over de overshoot-beveiligingswaarde of het kalibratieproces niet heeft uitgevoerd, wordt aanbevolen de configuratie te annuleren en het kalibratieproces te doorlopen zodat Ally OTGW automatisch de waarde voor optimale prestaties kan bepalen.",
         "title": "Overshoot-beveiliging"
       },
       "pid_controller": {
@@ -131,7 +131,7 @@
         "title": "PID Thermostaat met PWM ( AAN/UIT )"
       },
       "user": {
-        "description": "SAT is een slimme thermostaat die zichzelf kan optimaliseren om de temperatuurregeling te verbeteren. Kies de modus die past bij uw verwarmingssysteem.",
+        "description": "Ally OTGW is een slimme thermostaat die zichzelf kan optimaliseren om de temperatuurregeling te verbeteren. Kies de modus die past bij uw verwarmingssysteem.",
         "menu_options": {
           "mosquitto": "MQTT Gateway (OpenTherm, EMS-ESP, andere)",
           "serial": "Seriële Gateway (bijv. OpenTherm)",
@@ -139,7 +139,7 @@
           "simulator": "Gesimuleerde Gateway (Alleen voor ontwikkelaars)",
           "switch": "PID-Thermostaat (PWM Aan/Uit-modus)"
         },
-        "title": "Smart Autotune Thermostat (SAT)"
+        "title": "Danfoss Ally OTGW"
       }
     }
   },
@@ -147,7 +147,6 @@
     "step": {
       "advanced": {
         "data": {
-          "error_monitoring": "Foutbewaking inschakelen",
           "climate_valve_offset": "Offset van Klimaatklep",
           "dynamic_minimum_setpoint": "Dynamisch Minimaal Setpoint (Experimenteel)",
           "force_pulse_width_modulation": "Dwing Pulsbreedtemodulatie af",
@@ -233,7 +232,7 @@
           "window_minimum_open_time": "Minimale open tijd van het raam"
         },
         "data_description": {
-          "automatic_duty_cycle": "Hoe Pulsbreedtemodulatie (PWM) de aan/uit-cycli timet. Aan: SAT bepaalt de timing zelf, begrensd door Inschakelcycli per uur. Uit: één vaste cyclus van Maximale Inschakelduur (Algemeen) wordt verdeeld in aan- en uittijd. Dit zet PWM niet aan of uit: PWM draait zodra de gevraagde aanvoertemperatuur onder de Overshoot Beschermingswaarde ligt.",
+          "automatic_duty_cycle": "Hoe Pulsbreedtemodulatie (PWM) de aan/uit-cycli timet. Aan: Ally OTGW bepaalt de timing zelf, begrensd door Inschakelcycli per uur. Uit: één vaste cyclus van Maximale Inschakelduur (Algemeen) wordt verdeeld in aan- en uittijd. Dit zet PWM niet aan of uit: PWM draait zodra de gevraagde aanvoertemperatuur onder de Overshoot Beschermingswaarde ligt.",
           "cycles_per_hour": "Het maximale aantal branderstarts per uur terwijl Pulsbreedtemodulatie (PWM) actief is. Dit zet PWM niet aan of uit.",
           "overshoot_protection": "Overshoot Bescherming inschakelen met Pulsbreedtemodulatie (PWM) om temperatuur-overshoot van de ketel te voorkomen.",
           "sensor_max_value_age": "De maximale leeftijd van de waarden van de temperatuursensor voordat het als verouderd wordt beschouwd.",

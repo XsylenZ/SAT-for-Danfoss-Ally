@@ -3,10 +3,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-NAME = "Smart Autotune Thermostat"
-DOMAIN = "sat"
+NAME = "Danfoss Ally OTGW"
+DOMAIN = "ally_otgw"
 CLIMATE = "climate"
-SENTRY = "sentry"
 COORDINATOR = "coordinator"
 CONFIG_STORE = "config_store"
 
@@ -43,7 +42,6 @@ CONF_NAME = "name"
 CONF_DEVICE = "device"
 CONF_THERMOSTAT = "thermostat"
 CONF_MANUFACTURER = "manufacturer"
-CONF_ERROR_MONITORING = "error_monitoring"
 CONF_CYCLES_PER_HOUR = "cycles_per_hour"
 CONF_SIMULATED_HEATING = "simulated_heating"
 CONF_SIMULATED_COOLING = "simulated_cooling"
@@ -111,7 +109,6 @@ OPTIONS_DEFAULTS = {
     CONF_PROPORTIONAL: "45",
     CONF_INTEGRAL: "0",
     CONF_DERIVATIVE: "6000",
-    CONF_ERROR_MONITORING: False,
 
     CONF_CYCLES_PER_HOUR: 4,
     CONF_AUTOMATIC_GAINS: True,

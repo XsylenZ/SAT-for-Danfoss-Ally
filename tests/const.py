@@ -1,4 +1,4 @@
-from custom_components.sat.const import (
+from custom_components.ally_otgw.const import (
     MODE_FAKE,
     CONF_DEVICE,
     CONF_NAME,

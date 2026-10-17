@@ -8,10 +8,10 @@ from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.sat.climate import SatClimate
-from custom_components.sat.const import *
-from custom_components.sat.coordinator import DeviceState
-from custom_components.sat.fake import SatFakeCoordinator
+from custom_components.ally_otgw.climate import SatClimate
+from custom_components.ally_otgw.const import *
+from custom_components.ally_otgw.coordinator import DeviceState
+from custom_components.ally_otgw.fake import SatFakeCoordinator
 
 
 @pytest.mark.parametrize(*[
