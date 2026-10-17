@@ -192,7 +192,7 @@
           "derivative_time_weight": "Een parameter om de invloed van de afgeleideterm over tijd aan te passen, vooral nuttig om undershoot te verminderen tijdens de opwarmfase wanneer de coëfficiënt van de verwarmingscurve correct is ingesteld.",
           "duty_cycle": "De lengte van één aan/uit-cyclus van Pulsbreedtemodulatie (PWM), alleen gebruikt als Automatische inschakelduur uit staat. Dit zet PWM niet aan of uit.",
           "heating_curve_coefficient": "De coëfficiënt die wordt gebruikt om de verwarmingscurve aan te passen.",
-          "overshoot_hold": "De minimale fout die een ruimte blijft bijdragen zolang de thermostaat nog verwarming vraagt, zodat er warmte gevraagd wordt totdat de thermostaat zelf tevreden is.",
+          "overshoot_hold": "De minimale fout die een ruimte blijft bijdragen zolang de thermostaat nog verwarming vraagt, zodat er warmte gevraagd wordt totdat de thermostaat zelf tevreden is. Volgt hoe ver de klep open staat: de volle waarde bij een wijd open klep, minder naarmate hij sluit, minstens 0.2.",
           "integral": "De integraalterm (kI) in de PID-regelaar, verantwoordelijk voor het verminderen van de blijvende fout.",
           "maximum_setpoint": "De optimale temperatuur voor efficiënte werking van de ketel.",
           "proportional": "De proportionele term (kP) in de PID-regelaar, verantwoordelijk voor de directe reactie op fouten."

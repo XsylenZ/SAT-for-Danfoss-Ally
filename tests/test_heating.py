@@ -379,3 +379,26 @@ async def test_last_known_outside_temperature_survives_a_restart(hass: HomeAssis
 
     assert heating.current_outside_temperature == 4.5
     assert heating.extra_state_attributes["outside_temperature_source"] == OUTSIDE_SOURCE_LAST_KNOWN
+
+
+@pytest.mark.parametrize("domains, data, options, config", setup(40, 12.9, **{CONF_HEATING_CURVE_COEFFICIENT: 2.0, CONF_OVERSHOOT_HOLD: 1.2}))
+async def test_a_nearly_closed_valve_asks_for_a_low_flow_temperature(hass: HomeAssistant, entry: MockConfigEntry, heating: SatHeating, coordinator: SatFakeCoordinator) -> None:
+    # Today's test in the study: just below the target, the TRV still heating with its valve nearly closed
+    await add_trv(hass, "Woonkamer", "radiator_1")
+    await coordinator.async_set_boiler_temperature(40)
+    await heating.async_turn_on()
+
+    async def requested(opening: str) -> float:
+        hass.states.async_set("sensor.radiator_1_pi_heating_demand", opening)
+        set_trv(hass, 22.1, 22.5, "heating")
+        heating._async_control_pid(True)
+        await heating.async_control_heating_loop()
+        return heating.requested_setpoint
+
+    nearly_closed = await requested("11")
+    wide_open = await requested("95")
+
+    # Nearly closed, it follows the real difference of 0.4 °C instead of the full hold of 1.2
+    assert heating.areas.errors[0].value == 1.14
+    assert nearly_closed < 50
+    assert wide_open > nearly_closed + 10

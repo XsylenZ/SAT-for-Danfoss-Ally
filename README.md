@@ -124,7 +124,11 @@ Changing any setting reloads the integration; no restart of Home Assistant is ne
 - The TRVs are the thermostats: no inside sensor, presets, window sensors or target temperature of
   its own; the boiler is controlled by a switch, driven by zones of TRVs.
 - A room only drives the boiler while its TRV reports that it is actually heating, and keeps
-  requesting heat until the TRV itself is satisfied (configurable **Overshoot Hold**).
+  requesting heat until the TRV itself is satisfied (configurable **Overshoot Hold**). The hold
+  follows how far the valve is open (`pi_heating_demand`): a wide open valve keeps almost the full
+  hold, a nearly closed one only asks for a little (at least 0.2), so the boiler doesn't heat water
+  that the radiator can't take. With several rooms calling, the one that needs the most decides the
+  flow temperature; the TRVs of the other rooms take only their share.
 - The boiler never fires when no zone is calling for heat. A burn that is already running may
   finish, for at most 10 minutes.
 - TRVs that stop reporting, or become unavailable, are left out instead of keeping the boiler

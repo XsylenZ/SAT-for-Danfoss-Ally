@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import area_registry
 from homeassistant.util import dt
 
-from .const import CONF_ZONES, CONF_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE
+from .const import CONF_ZONES, CONF_OVERSHOOT_HOLD, AREA_STATE_MAX_AGE, AREA_MINIMUM_OVERSHOOT_HOLD
 from .errors import Errors, Error
 from .heating_curve import HeatingCurve
 from .helpers import float_value
@@ -25,10 +25,13 @@ SENSOR_TEMPERATURE_ID = "sensor_temperature_id"
 
 
 class Area:
-    def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any], entity_id: str):
+    def __init__(self, config_data: MappingProxyType[str, Any], config_options: MappingProxyType[str, Any], entity_id: str, pi_heating_demand: str | None = None):
         self._entity_id: str = entity_id
         self._hass: HomeAssistant | None = None
         self._overshoot_hold: float = float(config_options.get(CONF_OVERSHOOT_HOLD))
+
+        # How far the valve of the TRV is open, when it tells us
+        self.pi_heating_demand: str | None = pi_heating_demand
 
         # Create controllers with the given configuration options
         self.pid: PID = create_pid_controller(config_options)
@@ -93,7 +96,23 @@ class Area:
             return None
 
         # The room is calling for heat, keep requesting heat until its own thermostat is satisfied
-        return Error(self._entity_id, max(error, self._overshoot_hold))
+        return Error(self._entity_id, max(error, self.overshoot_hold))
+
+    @property
+    def overshoot_hold(self) -> float:
+        """Return how much heat we keep requesting for this room, following how far its valve is open.
+
+        A TRV that is nearly closed only needs a trickle of heat, so a full hold would make the boiler heat water that the
+        radiator can't take. Without a valve opening we keep the full hold, like before.
+        """
+        if self._hass is None or self.pi_heating_demand is None or (state := self._hass.states.get(self.pi_heating_demand)) is None:
+            return self._overshoot_hold
+
+        if state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE) or (opening := float_value(state.state)) is None:
+            return self._overshoot_hold
+
+        hold = self._overshoot_hold * min(max(opening, 0.0), 100.0) / 100
+        return round(min(self._overshoot_hold, max(AREA_MINIMUM_OVERSHOOT_HOLD, hold)), 2)
 
     @property
     def stale(self) -> bool:
@@ -204,9 +223,10 @@ class Areas:
             for trv in trvs:
                 # Keep the controllers of the TRVs we already knew
                 if (area := self._areas.get(trv.climate)) is None:
-                    area = Area(self._config_data, self._config_options, trv.climate)
+                    area = Area(self._config_data, self._config_options, trv.climate, trv.pi_heating_demand)
                     area._hass = self._hass
 
+                area.pi_heating_demand = trv.pi_heating_demand
                 areas[trv.climate] = area
 
         self._areas = areas

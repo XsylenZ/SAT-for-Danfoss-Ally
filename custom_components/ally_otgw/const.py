@@ -23,6 +23,9 @@ BOILER_DEADBAND = 2
 # Room demand gating (rooms only contribute an error while their thermostat reports it is heating)
 AREA_STATE_MAX_AGE = 3600
 
+# The overshoot hold follows how far the valve is open, but stays above DEADBAND so it never feeds the PID integral
+AREA_MINIMUM_OVERSHOOT_HOLD = 0.2
+
 # Once no room is calling for heat, a running burn may finish, but never for longer than this (in seconds)
 DEMAND_BURN_FINISH_TIMEOUT = 600
 

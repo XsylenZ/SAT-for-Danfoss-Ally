@@ -199,7 +199,7 @@
           "derivative_time_weight": "A parameter to adjust the influence of the derivative term over time, particularly useful for reducing undershoot during the warm-up phase when the heating curve coefficient is correctly set.",
           "duty_cycle": "The length of one Pulse Width Modulation (PWM) on/off cycle, used only when Automatic duty cycle is off. This does not turn PWM on or off.",
           "heating_curve_coefficient": "The coefficient used to adjust the heating curve.",
-          "overshoot_hold": "The minimum error a room keeps contributing while its thermostat still reports heating, so heat is requested until the thermostat itself is satisfied.",
+          "overshoot_hold": "The minimum error a room keeps contributing while its thermostat still reports heating, so heat is requested until the thermostat itself is satisfied. It follows how far the valve is open: the full value with a wide open valve, less as it closes, at least 0.2.",
           "integral": "The integral term (kI) in the PID controller, responsible for reducing steady-state error.",
           "maximum_setpoint": "The optimal temperature for efficient boiler operation.",
           "proportional": "The proportional term (kP) in the PID controller, responsible for the immediate response to errors."

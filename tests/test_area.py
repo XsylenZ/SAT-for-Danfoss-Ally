@@ -157,3 +157,57 @@ def test_unknown_demand_when_all_rooms_are_stale_or_unavailable() -> None:
         "climate.radiator_1": create_state(18.0, 20.0, HVACAction.HEATING, age=AREA_STATE_MAX_AGE + 60),
         "climate.radiator_2": None,
     }).demand is None
+
+
+def create_area_with_opening(current: float, target: float, opening: str | None, hold: float = 1.2) -> Area:
+    """An area for a heating TRV whose valve is open this far."""
+    states = {ENTITY_ID: create_state(current, target, HVACAction.HEATING), "sensor.pi_heating_demand": State("sensor.pi_heating_demand", opening) if opening is not None else None}
+
+    area = Area(MappingProxyType(DEFAULT_USER_DATA), MappingProxyType({**OPTIONS_DEFAULTS, CONF_OVERSHOOT_HOLD: hold}), ENTITY_ID, "sensor.pi_heating_demand")
+    area._hass = SimpleNamespace(states=SimpleNamespace(get=states.get))
+
+    return area
+
+
+@pytest.mark.parametrize("opening, hold", [
+    ("100", 1.2),
+    ("95", 1.14),
+    ("50", 0.6),
+    # Nearly closed, but never below the minimum, which keeps it out of the PID deadband
+    ("12", AREA_MINIMUM_OVERSHOOT_HOLD),
+    ("0", AREA_MINIMUM_OVERSHOOT_HOLD),
+    # Without a usable valve opening, the full hold like before
+    (STATE_UNAVAILABLE, 1.2),
+    ("unknown", 1.2),
+    (None, 1.2),
+])
+def test_overshoot_hold_follows_the_valve_opening(opening, hold) -> None:
+    area = create_area_with_opening(22.4, 22.5, opening)
+
+    assert area.overshoot_hold == hold
+    assert area.error.value == hold
+
+
+def test_a_real_error_larger_than_the_hold_still_counts() -> None:
+    # The room is far below its target, so the nearly closed valve doesn't lower what it asks for
+    assert create_area_with_opening(20.0, 22.5, "12").error.value == 2.5
+
+
+def test_the_room_that_needs_the_most_decides() -> None:
+    areas = create_areas(
+        {
+            "climate.woonkamer": create_state(20.4, 20.5, HVACAction.HEATING),
+            "climate.werkkamer": create_state(22.1, 22.5, HVACAction.HEATING),
+        },
+        {
+            "woonkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, "trvs": ["climate.woonkamer"]},
+            "werkkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, "trvs": ["climate.werkkamer"]},
+        },
+        {"climate.woonkamer": 95, "climate.werkkamer": 12},
+    )
+
+    errors = {error.entity_id: error.value for error in areas.errors}
+
+    # The wide open valve keeps almost the full hold and drives the boiler, the nearly closed one asks for little
+    assert errors == {"climate.woonkamer": round(OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD] * 0.95, 2), "climate.werkkamer": 0.4}
+    assert max(areas.errors, key=lambda error: error.value).entity_id == "climate.woonkamer"
