@@ -194,7 +194,7 @@ class Areas:
         return Errors([
             error
             for zone in self._zones if zone.calling
-            for trv in zone.trvs if (error := self._areas[trv.climate].error) is not None
+            for trv in zone.trvs if trv.climate in zone.heating and (error := self._areas[trv.climate].error) is not None
         ])
 
     @property

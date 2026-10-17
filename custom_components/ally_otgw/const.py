@@ -106,6 +106,10 @@ CONF_ZONE_MINIMUM_OPEN = "minimum_open"
 CONF_ZONE_MINIMUM_DEMAND = "minimum_demand"
 CONF_ZONE_MAXIMUM_WAIT = "maximum_wait"
 CONF_ZONE_LOAD_BALANCING = "load_balancing"
+CONF_ZONE_MINIMUM_OPENING = "minimum_opening"
+
+# Once a TRV counts as asking for heat, it keeps counting until its valve is this much below the minimum opening
+ZONE_MINIMUM_OPENING_HYSTERESIS = 5
 
 # Load balancing: the TRVs of a zone share the mean of their load estimates, written every interval (in minutes)
 CONF_LOAD_BALANCING_INTERVAL = "load_balancing_interval"
@@ -120,6 +124,7 @@ ZONE_DEFAULTS = {
     CONF_ZONE_MINIMUM_DEMAND: 100,
     CONF_ZONE_MAXIMUM_WAIT: 30,
     CONF_ZONE_LOAD_BALANCING: False,
+    CONF_ZONE_MINIMUM_OPENING: 20,
 }
 
 # The radiator thermostats this integration works with

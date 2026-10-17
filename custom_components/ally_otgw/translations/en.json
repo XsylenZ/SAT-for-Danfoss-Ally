@@ -256,14 +256,16 @@
           "minimum_open": "Minimum TRVs asking for heat",
           "minimum_demand": "Or minimum total valve opening",
           "maximum_wait": "Never wait longer than",
-          "load_balancing": "Load balancing"
+          "load_balancing": "Load balancing",
+          "minimum_opening": "Minimum valve opening"
         },
         "data_description": {
           "mode": "How the TRVs in this zone call for heat.",
           "minimum_open": "Together only: the zone calls for heat once this many of its TRVs ask for heat.",
           "minimum_demand": "Together only: or once the valve openings (pi_heating_demand) of the TRVs asking for heat add up to this. 0 disables this rule.",
           "maximum_wait": "Together only: a TRV asking for heat on its own gets heat after this time anyway.",
-          "load_balancing": "Let the TRVs of this zone share their load: every interval, the mean of their load estimates is written to each of them as load_room_mean, like a Danfoss gateway does. Useful for rooms with more than one TRV. Turning it off sets them back to undefined."
+          "load_balancing": "Let the TRVs of this zone share their load: every interval, the mean of their load estimates is written to each of them as load_room_mean, like a Danfoss gateway does. Useful for rooms with more than one TRV. Turning it off sets them back to undefined.",
+          "minimum_opening": "A TRV only asks for heat when its valve (pi_heating_demand) is at least this far open. A nearly closed valve hardly lets any water through, firing the boiler for it only makes it overshoot. Once asking, it keeps asking until 5% below this. 0 turns it off."
         }
       },
       "zone_areas": {

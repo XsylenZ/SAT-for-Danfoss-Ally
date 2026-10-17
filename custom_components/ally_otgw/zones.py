@@ -93,6 +93,7 @@ class Zone:
         self.minimum_demand: float = float(settings[CONF_ZONE_MINIMUM_DEMAND])
         self.maximum_wait: float = float(settings[CONF_ZONE_MAXIMUM_WAIT]) * 60
         self.load_balancing: bool = bool(settings[CONF_ZONE_LOAD_BALANCING])
+        self.minimum_opening: float = float(settings[CONF_ZONE_MINIMUM_OPENING])
         self.load_room_mean: int | None = None
 
         self.trvs: list[Trv] = []
@@ -102,11 +103,16 @@ class Zone:
         self.opening: float = 0.0
 
         self._waiting_since: float | None = None
+        self._asking: set[str] = set()
 
     def update(self, areas: dict[str, "Area"], hass: HomeAssistant | None) -> None:
         """Determine whether this zone is calling for heat."""
         available = [areas[trv.climate] for trv in self.trvs if areas[trv.climate].available]
-        heating = [trv for trv in self.trvs if areas[trv.climate] in available and (error := areas[trv.climate].error) is not None and error.value > 0]
+        heating = [
+            trv for trv in self.trvs
+            if areas[trv.climate] in available and (error := areas[trv.climate].error) is not None and error.value > 0 and self._asks_for_heat(hass, trv)
+        ]
+        self._asking = {trv.climate for trv in heating}
 
         self.available = len(available) > 0
         self.heating = [trv.climate for trv in heating]
@@ -135,6 +141,21 @@ class Zone:
         if monotonic() - self._waiting_since >= self.maximum_wait:
             _LOGGER.info("Zone %s waited %.0f minutes for more TRVs, calling for heat", self.area_id, self.maximum_wait / 60)
             self.calling = True
+
+    def _asks_for_heat(self, hass: HomeAssistant | None, trv: Trv) -> bool:
+        """Return True when the valve of a heating TRV is open far enough to take heat from the boiler.
+
+        A nearly closed valve hardly lets any water through: the TRV regulates its last tenths of a degree with the heat
+        that is already there, firing the boiler for it only makes it overshoot. Without a valve opening it always counts.
+        """
+        if (valve := valve_opening(hass, trv)) is None:
+            return True
+
+        # Once it counts, keep counting a little below the minimum, so a valve around it doesn't switch the boiler on and off
+        if trv.climate in self._asking:
+            return valve >= self.minimum_opening - ZONE_MINIMUM_OPENING_HYSTERESIS
+
+        return valve >= self.minimum_opening
 
     def summary(self, hass: HomeAssistant | None) -> dict[str, Any]:
         """Return the state of this zone, for the attributes of the climate entity."""
@@ -197,6 +218,17 @@ def load_room_mean(hass: HomeAssistant | None, trv: Trv) -> int | None:
         return None
 
     return round(value)
+
+
+def valve_opening(hass: HomeAssistant | None, trv: Trv) -> float | None:
+    """Return how far the valve of the TRV is open, in percent, or None when it doesn't tell us."""
+    if hass is None or trv.pi_heating_demand is None or (state := hass.states.get(trv.pi_heating_demand)) is None:
+        return None
+
+    if state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+        return None
+
+    return float_value(state.state)
 
 
 def opening(hass: HomeAssistant | None, trv: Trv) -> float:

@@ -39,6 +39,7 @@ ZONE_TEXTS = {
         "rules": " (at least {minimum_open} TRVs or {minimum_demand}% open, at most {maximum_wait} min waiting)",
         "none": "No zones yet, choose *Add or remove zones*.", "no_trvs": "no Danfoss Ally TRVs found in this area",
         "load_balancing": ", load balancing",
+        "minimum_opening": ", from {minimum_opening}% valve opening",
     },
     "nl": {
         "independent": "Zelfstandig", "together": "Samen",
@@ -46,6 +47,7 @@ ZONE_TEXTS = {
         "rules": " (minstens {minimum_open} kranen of {minimum_demand}% open, hooguit {maximum_wait} min wachten)",
         "none": "Nog geen zones, kies *Zones toevoegen of verwijderen*.", "no_trvs": "geen Danfoss Ally-kranen gevonden in deze ruimte",
         "load_balancing": ", lastverdeling",
+        "minimum_opening": ", vanaf {minimum_opening}% klepopening",
     },
 }
 
@@ -669,6 +671,9 @@ class SatOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                 vol.Required(CONF_ZONE_MODE, default=settings[CONF_ZONE_MODE]): selector.SelectSelector(
                     selector.SelectSelectorConfig(mode=SelectSelectorMode.LIST, translation_key="zone_mode", options=[ZONE_MODE_INDEPENDENT, ZONE_MODE_TOGETHER])
                 ),
+                vol.Required(CONF_ZONE_MINIMUM_OPENING, default=settings[CONF_ZONE_MINIMUM_OPENING]): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=100, step=5, unit_of_measurement="%")
+                ),
                 vol.Required(CONF_ZONE_MINIMUM_OPEN, default=settings[CONF_ZONE_MINIMUM_OPEN]): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=1, max=10, step=1, mode=selector.NumberSelectorMode.BOX)
                 ),
@@ -704,6 +709,8 @@ class SatOptionsFlowHandler(config_entries.OptionsFlowWithReload):
         trvs = [trv.climate.removeprefix("climate.") for trv in discover_trvs(self.hass, zone[CONF_ZONE_AREA])]
 
         line = f"- **{self._area_name(zone[CONF_ZONE_AREA])}**: {texts[settings[CONF_ZONE_MODE]]}"
+        if settings[CONF_ZONE_MINIMUM_OPENING] > 0:
+            line += texts["minimum_opening"].format(minimum_opening=int(settings[CONF_ZONE_MINIMUM_OPENING]))
         if settings[CONF_ZONE_MODE] == ZONE_MODE_TOGETHER:
             line += texts["rules"].format(
                 minimum_open=int(settings[CONF_ZONE_MINIMUM_OPEN]),

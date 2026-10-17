@@ -208,6 +208,6 @@ def test_the_room_that_needs_the_most_decides() -> None:
 
     errors = {error.entity_id: error.value for error in areas.errors}
 
-    # The wide open valve keeps almost the full hold and drives the boiler, the nearly closed one asks for little
-    assert errors == {"climate.woonkamer": round(OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD] * 0.95, 2), "climate.werkkamer": 0.4}
+    # The wide open valve keeps almost the full hold and drives the boiler, the nearly closed one doesn't ask for heat at all
+    assert errors == {"climate.woonkamer": round(OPTIONS_DEFAULTS[CONF_OVERSHOOT_HOLD] * 0.95, 2)}
     assert max(areas.errors, key=lambda error: error.value).entity_id == "climate.woonkamer"

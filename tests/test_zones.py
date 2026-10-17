@@ -3,7 +3,7 @@ import pytest
 from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.template import DOMAIN as TEMPLATE_DOMAIN
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -15,7 +15,7 @@ from custom_components.ally_otgw.zones import Trv, discover_trvs
 from tests.helpers import add_trv, move_trv
 from tests.test_area import create_areas, create_state
 
-TOGETHER = {CONF_ZONE_MODE: ZONE_MODE_TOGETHER, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False}
+TOGETHER = {CONF_ZONE_MODE: ZONE_MODE_TOGETHER, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False, CONF_ZONE_MINIMUM_OPENING: 20}
 
 LIVING_ROOM = ["climate.tv_hoek_r", "climate.tv_hoek_l", "climate.eetkamer_r"]
 
@@ -36,7 +36,7 @@ def test_together_waits_for_a_single_trv_with_a_small_opening() -> None:
 
 
 def test_together_calls_when_enough_trvs_are_heating() -> None:
-    areas, _, zone = living_room(["climate.tv_hoek_r", "climate.tv_hoek_l"], {"climate.tv_hoek_r": 20, "climate.tv_hoek_l": 10})
+    areas, _, zone = living_room(["climate.tv_hoek_r", "climate.tv_hoek_l"], {"climate.tv_hoek_r": 30, "climate.tv_hoek_l": 25})
 
     assert zone.calling
     assert areas.demand
@@ -90,12 +90,73 @@ def test_independent_zone_calls_for_a_single_trv() -> None:
     areas = create_areas(
         {"climate.werkkamer": create_state(19.5, 20.0, HVACAction.HEATING)},
         {"werkkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, "trvs": ["climate.werkkamer"]}},
-        {"climate.werkkamer": 5},
+        {"climate.werkkamer": 30},
     )
 
     assert areas.zones[0].calling
     assert areas.demand
 
+
+
+def study(opening: str | None, **settings):
+    """The study with a heating TRV whose valve is open this far."""
+    states = {"climate.werkkamer": create_state(22.1, 22.5, HVACAction.HEATING)}
+    areas = create_areas(states, {"werkkamer": {CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, **settings, "trvs": ["climate.werkkamer"]}}, {"climate.werkkamer": opening} if opening is not None else None)
+
+    return areas, areas.zones[0]
+
+
+def set_opening(areas, opening: float) -> None:
+    sensors = {"sensor.werkkamer_pi_heating_demand": State("sensor.werkkamer_pi_heating_demand", str(opening))}
+    get = areas._hass.states.get
+    areas._hass.states.get = lambda entity_id: sensors.get(entity_id) or get(entity_id)
+    areas.update()
+
+
+def test_a_nearly_closed_valve_does_not_ask_for_heat() -> None:
+    # Today's study: the TRV still says heating, but its valve is at 12%, which hardly lets any water through
+    areas, zone = study(12)
+
+    assert not zone.calling
+    assert not areas.demand
+    assert len(areas.errors) == 0
+
+
+def test_a_valve_open_far_enough_asks_for_heat() -> None:
+    areas, zone = study(25)
+
+    assert zone.calling
+    assert areas.demand
+
+
+def test_a_valve_around_the_minimum_does_not_flap() -> None:
+    areas, zone = study(25)
+    assert zone.calling
+
+    # Just below the minimum, it keeps counting
+    set_opening(areas, 17)
+    assert zone.calling
+
+    # Clearly below it, it stops
+    set_opening(areas, 14)
+    assert not zone.calling
+
+    # And it only counts again from the minimum, not from just below it
+    set_opening(areas, 17)
+    assert not zone.calling
+
+    set_opening(areas, 20)
+    assert zone.calling
+
+
+def test_the_minimum_opening_is_configurable() -> None:
+    # 0 turns it off, like before
+    assert study(5, **{CONF_ZONE_MINIMUM_OPENING: 0})[1].calling
+    assert not study(35, **{CONF_ZONE_MINIMUM_OPENING: 40})[1].calling
+
+
+def test_a_trv_without_a_valve_opening_still_asks_for_heat() -> None:
+    assert study(None)[1].calling
 
 def test_only_calling_zones_drive_the_boiler() -> None:
     areas = create_areas(
@@ -299,8 +360,8 @@ async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, heat
     result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_ZONES: ["woonkamer", "werkkamer"]})
     assert result["step_id"] == "zones"
     assert result["description_placeholders"]["overview"] == (
-        "- **Woonkamer**: Together (at least 2 TRVs or 100% open, at most 30 min waiting)\n  tv_hoek_l, tv_hoek_r\n"
-        "- **Werkkamer**: Independent\n  werkkamer"
+        "- **Woonkamer**: Together, from 20% valve opening (at least 2 TRVs or 100% open, at most 30 min waiting)\n  tv_hoek_l, tv_hoek_r\n"
+        "- **Werkkamer**: Independent, from 20% valve opening\n  werkkamer"
     )
 
     options = result["data_schema"].schema["zone"].config["options"]
@@ -324,7 +385,7 @@ async def test_configure_zones(hass: HomeAssistant, entry: MockConfigEntry, heat
 
     assert entry.options[CONF_ZONES] == [
         {CONF_ZONE_AREA: "woonkamer", **TOGETHER, CONF_ZONE_MINIMUM_OPEN: 3},
-        {CONF_ZONE_AREA: "werkkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False},
+        {CONF_ZONE_AREA: "werkkamer", CONF_ZONE_MODE: ZONE_MODE_INDEPENDENT, CONF_ZONE_MINIMUM_OPEN: 2, CONF_ZONE_MINIMUM_DEMAND: 100, CONF_ZONE_MAXIMUM_WAIT: 30, CONF_ZONE_LOAD_BALANCING: False, CONF_ZONE_MINIMUM_OPENING: 20},
     ]
 
     # Removing a zone keeps the settings of the others
